@@ -1,4 +1,5 @@
 *.log
 *.exe
+*.txt
 
 icooclaw_agent/.gocache/*
