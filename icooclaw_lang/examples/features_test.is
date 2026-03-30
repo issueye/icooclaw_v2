@@ -1,0 +1,25 @@
+# Test while loop
+i = 0
+while i < 3 {
+    print("while: " + str(i))
+    i = i + 1
+}
+
+# Test for loop
+for j in range(3) {
+    print("for: " + str(j))
+}
+
+# Test function
+fn greet(name) {
+    return "Hello, " + name
+}
+print(greet("World"))
+
+# Test array
+arr = [1, 2, 3]
+print("array len: " + str(len(arr)))
+
+# Test hash
+h = {"a": 1, "b": 2}
+print("hash a: " + str(h["a"]))

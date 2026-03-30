@@ -1,0 +1,6 @@
+# Test try-catch
+try {
+    x = 10 / 0
+} catch err {
+    print("caught error: " + err)
+}

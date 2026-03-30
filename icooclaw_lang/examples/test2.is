@@ -1,0 +1,22 @@
+x = 10
+if x > 5 {
+    print("big")
+} else {
+    print("small")
+}
+
+y = 3
+if y > 5 {
+    print("y is big")
+} else {
+    print("y is small")
+}
+
+z = 5
+if z > 10 {
+    print("z > 10")
+} else if z > 5 {
+    print("z > 5")
+} else {
+    print("z <= 5")
+}

@@ -80,18 +80,14 @@ func (p *Parser) ParseProgram() *ast.Program {
 			p.nextToken()
 			continue
 		}
-		curTok := p.curToken
 		stmt := p.parseStatement()
 		if stmt != nil {
 			program.Statements = append(program.Statements, stmt)
 		}
-		if p.curToken.Type != lexer.EOF && (p.curToken.Type == lexer.RPAREN || p.curToken.Type == lexer.RBRACKET || p.curToken.Type == lexer.RBRACE) {
+		if p.curToken.Type == lexer.RBRACE || p.curToken.Type == lexer.RBRACKET || p.curToken.Type == lexer.RPAREN {
 			p.nextToken()
 		}
 		p.skipNewlines()
-		if p.curToken == curTok {
-			p.nextToken()
-		}
 	}
 
 	return program
@@ -175,9 +171,10 @@ func (p *Parser) parseStatement() ast.Stmt {
 		return p.parseExportStmt()
 	case lexer.GO:
 		return p.parseGoStmt()
-	case lexer.RBRACE, lexer.RBRACKET:
+	case lexer.NEWLINE, lexer.SEMICOLON:
+		p.nextToken()
 		return nil
-	case lexer.RPAREN:
+	case lexer.RBRACE, lexer.RBRACKET, lexer.RPAREN:
 		return nil
 	default:
 		return p.parseExpressionStmt()
@@ -254,14 +251,19 @@ func (p *Parser) parseIfStmt() *ast.IfStmt {
 	}
 	stmt.Consequence = p.parseBlockStmt()
 
-	p.skipNewlines()
-
-	if p.curTokenIs(lexer.ELSE) {
-		p.nextToken()
-		if !p.expectPeek(lexer.LBRACE) {
-			return nil
+	if p.curToken.Type == lexer.ELSE {
+		if p.peekToken.Type == lexer.IF {
+			p.nextToken()
+			nestedIf := p.parseIfStmt()
+			stmt.Alternative = &ast.BlockStmt{
+				Statements: []ast.Stmt{nestedIf},
+			}
+		} else {
+			if !p.expectPeek(lexer.LBRACE) {
+				return nil
+			}
+			stmt.Alternative = p.parseBlockStmt()
 		}
-		stmt.Alternative = p.parseBlockStmt()
 	}
 
 	return stmt
@@ -309,23 +311,23 @@ func (p *Parser) parseWhileStmt() *ast.WhileStmt {
 
 func (p *Parser) parseBlockStmt() *ast.BlockStmt {
 	block := &ast.BlockStmt{Token: p.curToken}
-	p.nextToken()
+	if p.curToken.Type == lexer.LBRACE {
+		p.nextToken()
+	}
+	p.skipNewlines()
 
-	for !p.curTokenIs(lexer.RBRACE) && !p.curTokenIs(lexer.EOF) {
-		if p.curTokenIs(lexer.NEWLINE) || p.curTokenIs(lexer.SEMICOLON) {
-			p.nextToken()
-			continue
-		}
+	for p.curToken.Type != lexer.RBRACE && p.curToken.Type != lexer.EOF {
 		stmt := p.parseStatement()
 		if stmt != nil {
 			block.Statements = append(block.Statements, stmt)
 		}
-		if p.curTokenIs(lexer.RBRACE) {
+		if p.curToken.Type == lexer.RBRACE {
 			break
 		}
+		p.skipNewlines()
 	}
 
-	if p.curTokenIs(lexer.RBRACE) {
+	if p.curToken.Type == lexer.RBRACE {
 		p.nextToken()
 	}
 
@@ -368,7 +370,16 @@ func (p *Parser) parseMatchStmt() *ast.MatchStmt {
 		if mc != nil {
 			stmt.Cases = append(stmt.Cases, *mc)
 		}
+		if p.curTokenIs(lexer.RBRACE) || p.curTokenIs(lexer.EOF) {
+			break
+		}
 		p.skipNewlines()
+		if p.curTokenIs(lexer.RBRACE) || p.curTokenIs(lexer.EOF) {
+			break
+		}
+		if mc == nil {
+			p.nextToken()
+		}
 	}
 
 	if p.curTokenIs(lexer.RBRACE) {
@@ -382,20 +393,28 @@ func (p *Parser) parseMatchCase() *ast.MatchCase {
 	mc := &ast.MatchCase{Token: p.curToken}
 
 	mc.Patterns = append(mc.Patterns, p.parseExpr(LOWEST))
-
-	for p.curTokenIs(lexer.PIPE) {
-		p.nextToken()
-		mc.Patterns = append(mc.Patterns, p.parseExpr(LOWEST))
-	}
-
-	if !p.curTokenIs(lexer.ARROW) {
-		msg := fmt.Sprintf("line %d: expected '->' in match case, got %s", p.curToken.Line, p.curToken.Type)
-		p.errors = append(p.errors, msg)
+	if mc.Patterns[0] == nil {
 		return nil
 	}
-	p.nextToken()
+
+	for p.peekTokenIs(lexer.PIPE) {
+		p.nextToken()
+		p.nextToken()
+		pattern := p.parseExpr(LOWEST)
+		if pattern == nil {
+			return nil
+		}
+		mc.Patterns = append(mc.Patterns, pattern)
+	}
+
+	if !p.expectPeek(lexer.ARROW) {
+		return nil
+	}
 
 	mc.Result = p.parseExpr(LOWEST)
+	if mc.Result == nil {
+		return nil
+	}
 	return mc
 }
 
@@ -471,6 +490,11 @@ func (p *Parser) parseGoStmt() *ast.GoStmt {
 func (p *Parser) parseExpressionStmt() *ast.ExpressionStmt {
 	stmt := &ast.ExpressionStmt{Token: p.curToken}
 	stmt.Expr = p.parseExpr(LOWEST)
+
+	if stmt.Expr == nil {
+		p.nextToken()
+		return nil
+	}
 
 	if p.peekTokenIs(lexer.NEWLINE) || p.peekTokenIs(lexer.SEMICOLON) {
 		p.nextToken()

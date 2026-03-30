@@ -1,0 +1,8 @@
+# Test match statement
+x = 2
+result = match x {
+    1 -> "one"
+    2 -> "two"
+    _ -> "other"
+}
+print("match result: " + result)
