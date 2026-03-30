@@ -195,14 +195,6 @@ func (mb *MessageBus) forwardToInboundSubscribers(msg InboundMessage) {
 	}
 }
 
-// PublishInboundNoCtx 在不传入上下文的情况下发布入站消息（仅保留兼容性）。
-// Deprecated: 请改用带上下文的 PublishInbound。
-func (mb *MessageBus) PublishInboundNoCtx(msg InboundMessage) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return mb.PublishInbound(ctx, msg)
-}
-
 // ConsumeInbound 从总线消费一条入站消息。
 // 成功时返回消息和 true；总线关闭或上下文取消时返回空消息和 false。
 func (mb *MessageBus) ConsumeInbound(ctx context.Context) (InboundMessage, bool) {
@@ -263,14 +255,6 @@ func (mb *MessageBus) forwardToOutboundSubscribers(msg OutboundMessage) {
 			}
 		}()
 	}
-}
-
-// PublishOutboundNoCtx 在不传入上下文的情况下发布出站消息（仅保留兼容性）。
-// Deprecated: 请改用带上下文的 PublishOutbound。
-func (mb *MessageBus) PublishOutboundNoCtx(msg OutboundMessage) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return mb.PublishOutbound(ctx, msg)
 }
 
 // ConsumeOutbound 从总线消费一条出站消息。
@@ -464,13 +448,6 @@ func (mb *MessageBus) IsClosed() bool {
 // DropCount 返回已丢弃消息数量。
 func (mb *MessageBus) DropCount() int64 {
 	return mb.dropCount.Load()
-}
-
-// Run 启动消息总线（为兼容保留；当前实现中通道创建后即处于可用状态）。
-func (mb *MessageBus) Run(ctx context.Context) error {
-	<-ctx.Done()
-	mb.Close()
-	return ctx.Err()
 }
 
 // GetMetrics 返回当前指标。
