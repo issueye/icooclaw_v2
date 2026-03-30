@@ -1,0 +1,31 @@
+fn ws_echo(req, socket) {
+    text = socket.read()
+    socket.send("echo:" + text)
+}
+
+ws_server = websocket.server.new()
+ws_server.handle("/echo", ws_echo)
+ws_server.start("127.0.0.1:0")
+
+ws_client = websocket.client.connect(ws_server.url("/echo"))
+ws_client.send("hello")
+print(ws_client.read())
+ws_client.close()
+ws_server.stop()
+
+fn sse_events(req, stream) {
+    stream.send("hello")
+    stream.send_event("update", "world")
+    stream.send_json({"ok": true})
+}
+
+sse_server = sse.server.new()
+sse_server.handle("/events", sse_events)
+sse_server.start("127.0.0.1:0")
+
+sse_client = sse.client.connect(sse_server.url("/events"))
+print(sse_client.read().data)
+print(sse_client.read().event)
+print(sse_client.read().event)
+sse_client.close()
+sse_server.stop()

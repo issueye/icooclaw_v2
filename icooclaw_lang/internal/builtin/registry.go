@@ -20,12 +20,14 @@ func buildBuiltins() map[string]object.Object {
 
 func libraryBuiltins() map[string]object.Object {
 	return map[string]object.Object{
-		"fs":     newFSLib(),
-		"http":   newHTTPLib(),
-		"json":   newJSONLib(),
-		"time":   newTimeLib(),
-		"os":     newOSLib(),
-		"path":   newPathLib(),
-		"crypto": newCryptoLib(),
+		"fs":        newFSLib(),
+		"http":      newHTTPLib(),
+		"json":      newJSONLib(),
+		"time":      newTimeLib(),
+		"os":        newOSLib(),
+		"path":      newPathLib(),
+		"crypto":    newCryptoLib(),
+		"websocket": newWebSocketLib(),
+		"sse":       newSSELib(),
 	}
 }
