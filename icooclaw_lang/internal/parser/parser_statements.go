@@ -79,15 +79,28 @@ func (p *Parser) parseParams() []*ast.Identifier {
 	var params []*ast.Identifier
 
 	p.nextToken()
+	p.skipNewlines()
 	if p.curTokenIs(lexer.RPAREN) {
 		return params
 	}
 
 	params = append(params, &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal})
 
-	for p.peekTokenIs(lexer.COMMA) {
+	for {
+		p.skipPeekNewlines()
+		if p.peekTokenIs(lexer.RPAREN) {
+			p.nextToken()
+			return params
+		}
+		if !p.peekTokenIs(lexer.COMMA) {
+			break
+		}
 		p.nextToken()
 		p.nextToken()
+		p.skipNewlines()
+		if p.curTokenIs(lexer.RPAREN) {
+			return params
+		}
 		params = append(params, &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal})
 	}
 
