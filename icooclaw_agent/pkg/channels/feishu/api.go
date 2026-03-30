@@ -1,0 +1,179 @@
+package feishu
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"icooclaw/pkg/channels/errs"
+	"os"
+
+	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+)
+
+// SendText sends a text message to a chat.
+func (c *Channel) SendText(ctx context.Context, chatID, text string) error {
+	if !c.IsRunning() {
+		return errs.ErrNotRunning
+	}
+
+	content, err := json.Marshal(map[string]string{"text": text})
+	if err != nil {
+		return fmt.Errorf("marshal text content: %w", err)
+	}
+
+	req := larkim.NewCreateMessageReqBuilder().
+		ReceiveIdType(larkim.ReceiveIdTypeChatId).
+		Body(larkim.NewCreateMessageReqBodyBuilder().
+			ReceiveId(chatID).
+			MsgType(larkim.MsgTypeText).
+			Content(string(content)).
+			Build()).
+		Build()
+
+	resp, err := c.client.Im.V1.Message.Create(ctx, req)
+	if err != nil {
+		return fmt.Errorf("feishu send text: %w", errs.ErrTemporary)
+	}
+
+	if !resp.Success() {
+		return fmt.Errorf("feishu api error (code=%d msg=%s): %w", resp.Code, resp.Msg, errs.ErrTemporary)
+	}
+
+	return nil
+}
+
+// SendImage sends an image message to a chat.
+func (c *Channel) SendImage(ctx context.Context, chatID string, imagePath string) error {
+	if !c.IsRunning() {
+		return errs.ErrNotRunning
+	}
+
+	file, err := os.Open(imagePath)
+	if err != nil {
+		return fmt.Errorf("open image file: %w", err)
+	}
+	defer file.Close()
+
+	// Upload image to get image_key
+	uploadReq := larkim.NewCreateImageReqBuilder().
+		Body(larkim.NewCreateImageReqBodyBuilder().
+			ImageType("message").
+			Image(file).
+			Build()).
+		Build()
+
+	uploadResp, err := c.client.Im.V1.Image.Create(ctx, uploadReq)
+	if err != nil {
+		return fmt.Errorf("feishu image upload: %w", err)
+	}
+	if !uploadResp.Success() {
+		return fmt.Errorf("feishu image upload api error (code=%d msg=%s)", uploadResp.Code, uploadResp.Msg)
+	}
+	if uploadResp.Data == nil || uploadResp.Data.ImageKey == nil {
+		return fmt.Errorf("feishu image upload: no image_key returned")
+	}
+
+	imageKey := *uploadResp.Data.ImageKey
+
+	// Send image message
+	content, err := json.Marshal(map[string]string{"image_key": imageKey})
+	if err != nil {
+		return fmt.Errorf("marshal image content: %w", err)
+	}
+	req := larkim.NewCreateMessageReqBuilder().
+		ReceiveIdType(larkim.ReceiveIdTypeChatId).
+		Body(larkim.NewCreateMessageReqBodyBuilder().
+			ReceiveId(chatID).
+			MsgType(larkim.MsgTypeImage).
+			Content(string(content)).
+			Build()).
+		Build()
+
+	resp, err := c.client.Im.V1.Message.Create(ctx, req)
+	if err != nil {
+		return fmt.Errorf("feishu image send: %w", err)
+	}
+	if !resp.Success() {
+		return fmt.Errorf("feishu image send api error (code=%d msg=%s)", resp.Code, resp.Msg)
+	}
+	return nil
+}
+
+// SendFile sends a file message to a chat.
+func (c *Channel) SendFile(ctx context.Context, chatID string, filePath string, fileType string) error {
+	if !c.IsRunning() {
+		return errs.ErrNotRunning
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("open file: %w", err)
+	}
+	defer file.Close()
+
+	// Map file type to Feishu file type
+	feishuFileType := "stream"
+	switch fileType {
+	case "audio":
+		feishuFileType = "opus"
+	case "video":
+		feishuFileType = "mp4"
+	}
+
+	filename := filePath
+	if len(filename) > 100 {
+		filename = filename[len(filename)-100:]
+	}
+
+	// Upload file to get file_key
+	uploadReq := larkim.NewCreateFileReqBuilder().
+		Body(larkim.NewCreateFileReqBodyBuilder().
+			FileType(feishuFileType).
+			FileName(filename).
+			File(file).
+			Build()).
+		Build()
+
+	uploadResp, err := c.client.Im.V1.File.Create(ctx, uploadReq)
+	if err != nil {
+		return fmt.Errorf("feishu file upload: %w", err)
+	}
+	if !uploadResp.Success() {
+		return fmt.Errorf("feishu file upload api error (code=%d msg=%s)", uploadResp.Code, uploadResp.Msg)
+	}
+	if uploadResp.Data == nil || uploadResp.Data.FileKey == nil {
+		return fmt.Errorf("feishu file upload: no file_key returned")
+	}
+
+	fileKey := *uploadResp.Data.FileKey
+
+	// Send file message
+	content, err := json.Marshal(map[string]string{"file_key": fileKey})
+	if err != nil {
+		return fmt.Errorf("marshal file content: %w", err)
+	}
+	req := larkim.NewCreateMessageReqBuilder().
+		ReceiveIdType(larkim.ReceiveIdTypeChatId).
+		Body(larkim.NewCreateMessageReqBodyBuilder().
+			ReceiveId(chatID).
+			MsgType(larkim.MsgTypeFile).
+			Content(string(content)).
+			Build()).
+		Build()
+
+	resp, err := c.client.Im.V1.Message.Create(ctx, req)
+	if err != nil {
+		return fmt.Errorf("feishu file send: %w", err)
+	}
+	if !resp.Success() {
+		return fmt.Errorf("feishu file send api error (code=%d msg=%s)", resp.Code, resp.Msg)
+	}
+	return nil
+}
+
+// UserInfo contains user information.
+type UserInfo struct {
+	Name    string
+	OpenID  string
+	UnionID string
+}

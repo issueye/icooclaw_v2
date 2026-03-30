@@ -1,0 +1,6 @@
+nanobot/*
+*.exe
+config.toml
+*.db
+*.db-shm
+*.db-wal

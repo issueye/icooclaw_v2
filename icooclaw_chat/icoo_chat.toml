@@ -1,0 +1,6 @@
+[claw_connection]
+api_base = 'http://localhost:16789'
+ws_host = 'localhost'
+ws_port = '16789'
+ws_path = '/ws'
+user_id = 'user-1'
