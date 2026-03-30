@@ -1,0 +1,14 @@
+log.reset()
+log.set_level("debug")
+log.info("stdout info")
+
+fs.remove("demo.log")
+log.set_output("demo.log")
+log.warn("warn to file")
+log.error({"request_id": "req-1", "code": 500}, "file error")
+
+log.set_json(true)
+log.info({"module": "demo", "ok": true}, "json line")
+
+log.reset()
+print(fs.read_file("demo.log"))
