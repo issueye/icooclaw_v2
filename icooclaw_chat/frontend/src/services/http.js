@@ -1,8 +1,6 @@
-const API_BASE_KEY = "icooclaw_api_base";
+import { isWailsEnv } from './wails.js';
 
-export function isWailsEnv() {
-  return typeof window !== "undefined" && window.go !== undefined;
-}
+const API_BASE_KEY = "icooclaw_api_base";
 
 function getApiBase() {
   const stored = localStorage.getItem(API_BASE_KEY);

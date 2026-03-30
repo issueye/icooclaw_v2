@@ -14,42 +14,40 @@ import (
 
 // SenderInfo 描述消息发送者信息。
 type SenderInfo struct {
-	ID       string
-	Name     string
-	Username string
-	IsBot    bool
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Username string `json:"username"`
+	IsBot    bool   `json:"is_bot"`
 }
 
 // InboundMessage 表示从渠道接收到的入站消息。
 type InboundMessage struct {
-	Channel   string
-	SessionID string
-	Sender    SenderInfo
-	Text      string
-	Media     []string
-	ReplyTo   string
-	Timestamp time.Time
-	Metadata  map[string]any
+	Channel   string         `json:"channel"`
+	SessionID string         `json:"session_id"`
+	Sender    SenderInfo     `json:"sender"`
+	Text      string         `json:"text"`
+	Media     []string       `json:"media,omitempty"`
+	ReplyTo   string         `json:"reply_to,omitempty"`
+	Timestamp time.Time      `json:"timestamp"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
 }
 
-// OutboundMessage 表示准备发送到渠道的出站消息。
 type OutboundMessage struct {
-	Channel   string
-	SessionID string
-	Text      string
-	Media     []string
-	ReplyTo   string
-	EditID    string
-	Metadata  map[string]any
+	Channel   string         `json:"channel"`
+	SessionID string         `json:"session_id"`
+	Text      string         `json:"text"`
+	Media     []string       `json:"media,omitempty"`
+	ReplyTo   string         `json:"reply_to,omitempty"`
+	EditID    string         `json:"edit_id,omitempty"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
 }
 
-// OutboundMediaMessage 表示准备发送的媒体消息。
 type OutboundMediaMessage struct {
-	Channel   string
-	SessionID string
-	Media     []string
-	Caption   string
-	Metadata  map[string]any
+	Channel   string         `json:"channel"`
+	SessionID string         `json:"session_id"`
+	Media     []string       `json:"media"`
+	Caption   string         `json:"caption,omitempty"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
 }
 
 const defaultBusBufferSize = 64

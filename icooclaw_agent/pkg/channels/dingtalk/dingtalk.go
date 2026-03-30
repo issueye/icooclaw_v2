@@ -13,9 +13,9 @@ import (
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/client"
 
 	"icooclaw/pkg/bus"
-	"icooclaw/pkg/channels/errs"
 	"icooclaw/pkg/channels/models"
 	"icooclaw/pkg/consts"
+	errs "icooclaw/pkg/errors"
 	"icooclaw/pkg/utils"
 )
 
@@ -120,16 +120,7 @@ func (c *Channel) IsRunning() bool {
 
 // IsAllowed 检查发送者是否被允许.
 func (c *Channel) IsAllowed(senderID string) bool {
-	if len(c.config.AllowFrom) == 0 {
-		return true
-	}
-
-	for _, allowed := range c.config.AllowFrom {
-		if senderID == allowed {
-			return true
-		}
-	}
-	return false
+	return models.IsSenderAllowed(c.config.AllowFrom, senderID)
 }
 
 // IsAllowedSender 检查发送者是否被允许.
@@ -265,15 +256,8 @@ func (c *Channel) SendDirectReply(ctx context.Context, sessionWebhook, content s
 	return nil
 }
 
-// truncate 截断字符串到最大长度.
 func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	if maxLen <= 0 {
-		return ""
-	}
-	return s[:maxLen]
+	return utils.Truncate(s, maxLen)
 }
 
 // ParseConfig 解析钉钉渠道配置.

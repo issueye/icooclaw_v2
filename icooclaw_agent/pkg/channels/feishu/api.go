@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"icooclaw/pkg/channels/errs"
+	errs "icooclaw/pkg/errors"
 	"os"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"

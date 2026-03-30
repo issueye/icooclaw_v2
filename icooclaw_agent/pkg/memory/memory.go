@@ -3,10 +3,11 @@ package memory
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"icooclaw/pkg/utils"
 
 	"icooclaw/pkg/consts"
 	"icooclaw/pkg/providers"
@@ -261,6 +262,5 @@ func joinSummaryMessages(messages []*storage.Message) string {
 }
 
 func mustMarshalJSON(v any) string {
-	data, _ := json.Marshal(v)
-	return string(data)
+	return utils.MustMarshalJSON(v)
 }

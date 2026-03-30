@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -46,4 +47,25 @@ func NormalizeSkillIdentifier(identifier string) string {
 
 	normalized := skillIdentifierSanitizer.ReplaceAllString(trimmed, "-")
 	return strings.Trim(normalized, "-")
+}
+
+func MustMarshalJSON(v any) string {
+	data, _ := json.Marshal(v)
+	return string(data)
+}
+
+func Truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen]
+}
+
+func FirstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if t := strings.TrimSpace(v); t != "" {
+			return t
+		}
+	}
+	return ""
 }

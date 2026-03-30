@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"icooclaw/pkg/bus"
-	"icooclaw/pkg/channels/errs"
 	"icooclaw/pkg/channels/models"
 	"icooclaw/pkg/consts"
+	errs "icooclaw/pkg/errors"
 	"icooclaw/pkg/utils"
 
 	"github.com/gorilla/websocket"
@@ -132,15 +132,7 @@ func (c *Channel) IsRunning() bool {
 }
 
 func (c *Channel) IsAllowed(senderID string) bool {
-	if len(c.config.AllowFrom) == 0 {
-		return true
-	}
-	for _, allowed := range c.config.AllowFrom {
-		if senderID == allowed {
-			return true
-		}
-	}
-	return false
+	return models.IsSenderAllowed(c.config.AllowFrom, senderID)
 }
 
 func (c *Channel) connect(ctx context.Context) (*websocket.Conn, error) {

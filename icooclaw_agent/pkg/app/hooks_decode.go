@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 
 	"icooclaw/pkg/providers"
+	"icooclaw/pkg/utils"
 )
 
 func mustMarshalJSON(v any) string {
-	data, _ := json.Marshal(v)
-	return string(data)
+	return utils.MustMarshalJSON(v)
 }
 
 func decodeHookMessages(result any) ([]providers.ChatMessage, bool, error) {

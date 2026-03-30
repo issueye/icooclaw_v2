@@ -21,9 +21,9 @@ import (
 	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 
 	"icooclaw/pkg/bus"
-	"icooclaw/pkg/channels/errs"
 	"icooclaw/pkg/channels/models"
 	"icooclaw/pkg/consts"
+	errs "icooclaw/pkg/errors"
 	"icooclaw/pkg/utils"
 )
 
@@ -137,16 +137,7 @@ func (c *Channel) IsRunning() bool {
 
 // IsAllowed checks if a sender is allowed.
 func (c *Channel) IsAllowed(senderID string) bool {
-	if len(c.config.AllowFrom) == 0 {
-		return true
-	}
-
-	for _, allowed := range c.config.AllowFrom {
-		if senderID == allowed {
-			return true
-		}
-	}
-	return false
+	return models.IsSenderAllowed(c.config.AllowFrom, senderID)
 }
 
 // IsAllowedSender checks if a sender is allowed (with full info).

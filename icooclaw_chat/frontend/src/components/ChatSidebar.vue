@@ -72,110 +72,32 @@
                 </div>
 
                 <template v-if="!searchQuery">
-                    <!-- 今天 -->
-                    <template v-if="groupedSessions.today.length > 0">
-                        <div class="px-3 pt-2 pb-1.5 text-[11px] text-text-muted font-semibold uppercase tracking-[0.16em]">
-                            今天
-                        </div>
-                        <button
-                            v-for="session in groupedSessions.today"
-                            :key="session.id"
-                            @click="$emit('select', session.id)"
-                            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left group transition-all text-sm border"
-                            :class="
-                                session.id === currentSessionId
-                                    ? 'bg-accent/10 text-accent border-accent/30 shadow-[var(--shadow-sm)]'
-                                    : 'text-text-secondary border-transparent hover:bg-bg-secondary hover:border-border hover:text-text-primary'
-                            "
-                        >
-                            <MessageSquareIcon :size="15" class="flex-shrink-0 opacity-60" />
-                            <span class="flex-1 truncate font-medium">{{ session.title || "新对话" }}</span>
-                            <span
-                                @click.stop="$emit('delete', session.id)"
-                                class="opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500 p-1 rounded cursor-pointer"
-                            >
-                                <Trash2Icon :size="12" />
-                            </span>
-                        </button>
-                    </template>
-
-                    <!-- 昨天 -->
-                    <template v-if="groupedSessions.yesterday.length > 0">
-                        <div class="px-3 pt-2 pb-1.5 text-[11px] text-text-muted font-semibold uppercase tracking-[0.16em]">
-                            昨天
-                        </div>
-                        <button
-                            v-for="session in groupedSessions.yesterday"
-                            :key="session.id"
-                            @click="$emit('select', session.id)"
-                            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left group transition-all text-sm border"
-                            :class="
-                                session.id === currentSessionId
-                                    ? 'bg-accent/10 text-accent border-accent/30 shadow-[var(--shadow-sm)]'
-                                    : 'text-text-secondary border-transparent hover:bg-bg-secondary hover:border-border hover:text-text-primary'
-                            "
-                        >
-                            <MessageSquareIcon :size="15" class="flex-shrink-0 opacity-60" />
-                            <span class="flex-1 truncate font-medium">{{ session.title || "新对话" }}</span>
-                            <span
-                                @click.stop="$emit('delete', session.id)"
-                                class="opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500 p-1 rounded cursor-pointer"
-                            >
-                                <Trash2Icon :size="12" />
-                            </span>
-                        </button>
-                    </template>
-
-                    <!-- 更早 -->
-                    <template v-if="groupedSessions.earlier.length > 0">
-                        <div class="px-3 pt-2 pb-1.5 text-[11px] text-text-muted font-semibold uppercase tracking-[0.16em]">
-                            更早
-                        </div>
-                        <button
-                            v-for="session in groupedSessions.earlier"
-                            :key="session.id"
-                            @click="$emit('select', session.id)"
-                            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left group transition-all text-sm border"
-                            :class="
-                                session.id === currentSessionId
-                                    ? 'bg-accent/10 text-accent border-accent/30 shadow-[var(--shadow-sm)]'
-                                    : 'text-text-secondary border-transparent hover:bg-bg-secondary hover:border-border hover:text-text-primary'
-                            "
-                        >
-                            <MessageSquareIcon :size="15" class="flex-shrink-0 opacity-60" />
-                            <span class="flex-1 truncate font-medium">{{ session.title || "新对话" }}</span>
-                            <span
-                                @click.stop="$emit('delete', session.id)"
-                                class="opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500 p-1 rounded cursor-pointer"
-                            >
-                                <Trash2Icon :size="12" />
-                            </span>
-                        </button>
+                    <template v-for="group in displayGroups" :key="group.label">
+                        <template v-if="group.sessions.length > 0">
+                            <div class="px-3 pt-2 pb-1.5 text-[11px] text-text-muted font-semibold uppercase tracking-[0.16em]">
+                                {{ group.label }}
+                            </div>
+                            <SessionItem
+                                v-for="session in group.sessions"
+                                :key="session.id"
+                                :session="session"
+                                :active="session.id === currentSessionId"
+                                @select="$emit('select', session.id)"
+                                @delete="$emit('delete', session.id)"
+                            />
+                        </template>
                     </template>
                 </template>
 
-                <!-- 搜索结果 -->
                 <template v-else>
-                    <button
+                    <SessionItem
                         v-for="session in filteredSessions"
                         :key="session.id"
-                        @click="$emit('select', session.id)"
-                        class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left group transition-all text-sm border"
-                        :class="
-                            session.id === currentSessionId
-                                ? 'bg-accent/10 text-accent border-accent/30 shadow-[var(--shadow-sm)]'
-                                : 'text-text-secondary border-transparent hover:bg-bg-secondary hover:border-border hover:text-text-primary'
-                        "
-                    >
-                        <MessageSquareIcon :size="15" class="flex-shrink-0 opacity-60" />
-                        <span class="flex-1 truncate font-medium">{{ session.title || "新对话" }}</span>
-                        <span
-                            @click.stop="$emit('delete', session.id)"
-                            class="opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500 p-1 rounded cursor-pointer"
-                        >
-                            <Trash2Icon :size="12" />
-                        </span>
-                    </button>
+                        :session="session"
+                        :active="session.id === currentSessionId"
+                        @select="$emit('select', session.id)"
+                        @delete="$emit('delete', session.id)"
+                    />
                 </template>
             </div>
 
@@ -212,11 +134,10 @@ import {
     BotIcon,
     PlusIcon,
     PanelLeftCloseIcon,
-    MessageSquareIcon,
-    Trash2Icon,
     SearchIcon,
     XIcon,
 } from "lucide-vue-next";
+import SessionItem from "./SessionItem.vue";
 
 const props = defineProps({
     sessions: { type: Array, default: () => [] },
@@ -275,6 +196,12 @@ const groupedSessions = computed(() => {
 
     return groups;
 });
+
+const displayGroups = computed(() => [
+    { label: '今天', sessions: groupedSessions.value.today },
+    { label: '昨天', sessions: groupedSessions.value.yesterday },
+    { label: '更早', sessions: groupedSessions.value.earlier },
+]);
 
 function clearSearch() {
     searchQuery.value = "";

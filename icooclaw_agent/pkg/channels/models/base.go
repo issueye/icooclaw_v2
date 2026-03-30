@@ -1,38 +1,53 @@
 package models
 
 import (
-	"encoding/json"
 	"strings"
 )
 
 type Allow []string
 
-// 处理 JSON 序列化
-func (a Allow) MarshalJSON() ([]byte, error) {
-	return json.Marshal(a)
+func IsSenderAllowed(allowFrom Allow, senderID string) bool {
+	if len(allowFrom) == 0 {
+		return true
+	}
+	for _, allowed := range allowFrom {
+		if senderID == allowed {
+			return true
+		}
+	}
+	return false
 }
 
-// 处理 JSON 反序列化
-func (a *Allow) UnmarshalJSON(data []byte) error {
-	// 传入的 JSON 字符串可能为空
-	if len(data) == 0 {
-		// 如果为空，直接返回 nil
+func ParseAllowFrom(raw any) Allow {
+	if raw == nil {
 		return nil
 	}
-
-	// 如果是字符串，直接赋值
-	if string(data) == "[]" {
-		*a = []string{}
-		return nil
+	if arr, ok := raw.([]any); ok {
+		var result Allow
+		for _, item := range arr {
+			if s, ok := item.(string); ok {
+				result = append(result, s)
+			}
+		}
+		return result
 	}
-
-	// 如果没有 , 则直接赋值
-	if !strings.Contains(string(data), ",") {
-		*a = []string{string(data)}
-		return nil
-	}
-
-	// 否则，按 , 分隔
-	*a = strings.Split(string(data), ",")
 	return nil
+}
+
+func ParseStringField(raw map[string]any, key string) string {
+	if v, ok := raw[key]; ok {
+		if s, ok := v.(string); ok {
+			return strings.TrimSpace(s)
+		}
+	}
+	return ""
+}
+
+func ParseBoolField(raw map[string]any, key string) bool {
+	if v, ok := raw[key]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return false
 }

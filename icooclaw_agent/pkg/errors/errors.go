@@ -15,13 +15,13 @@ var (
 	ErrAuthFailed          = errors.New("认证失败")
 
 	// Config errors
-	ErrInvalidConfig = errors.New("配置无效")
+	ErrInvalidConfig  = errors.New("配置无效")
 	ErrConfigNotFound = errors.New("配置未找到")
 
 	// Tool errors
-	ErrToolNotFound    = errors.New("工具未找到")
-	ErrToolExecution   = errors.New("工具执行失败")
-	ErrToolTimeout     = errors.New("工具执行超时")
+	ErrToolNotFound  = errors.New("工具未找到")
+	ErrToolExecution = errors.New("工具执行失败")
+	ErrToolTimeout   = errors.New("工具执行超时")
 
 	// Session errors
 	ErrSessionNotFound = errors.New("会话未找到")
@@ -45,9 +45,9 @@ var (
 	ErrMCPToolNotFound     = errors.New("MCP工具未找到")
 
 	// Generic errors
-	ErrBufferFull   = errors.New("缓冲区已满")
-	ErrNotRunning   = errors.New("未在运行")
-	ErrTemporary    = errors.New("临时故障")
+	ErrBufferFull = errors.New("缓冲区已满")
+	ErrNotRunning = errors.New("未在运行")
+	ErrTemporary  = errors.New("临时故障")
 )
 
 // FailoverReason represents the reason for provider failover.
@@ -133,4 +133,29 @@ func Wrap(err error, message string) error {
 // Wrapf wraps an error with formatted context.
 func Wrapf(err error, format string, args ...any) error {
 	return fmt.Errorf("%s: %w", fmt.Sprintf(format, args...), err)
+}
+
+func ClassifySendError(statusCode int, rawErr error) error {
+	switch {
+	case statusCode == 429:
+		return fmt.Errorf("%w: %v", ErrRateLimited, rawErr)
+	case statusCode >= 500:
+		return fmt.Errorf("%w: %v", ErrTemporary, rawErr)
+	case statusCode >= 400:
+		return fmt.Errorf("%w: %v", ErrSendFailed, rawErr)
+	default:
+		return rawErr
+	}
+}
+
+func ClassifyNetError(err error) error {
+	return fmt.Errorf("%w: %v", ErrTemporary, err)
+}
+
+func IsChannelRetriable(err error) bool {
+	return errors.Is(err, ErrRateLimited) || errors.Is(err, ErrTemporary)
+}
+
+func IsChannelPermanent(err error) bool {
+	return errors.Is(err, ErrNotRunning) || errors.Is(err, ErrSendFailed)
 }

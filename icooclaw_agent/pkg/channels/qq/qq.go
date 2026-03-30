@@ -18,9 +18,9 @@ import (
 	"golang.org/x/oauth2"
 
 	"icooclaw/pkg/bus"
-	"icooclaw/pkg/channels/errs"
 	"icooclaw/pkg/channels/models"
 	"icooclaw/pkg/consts"
+	errs "icooclaw/pkg/errors"
 	"icooclaw/pkg/utils"
 )
 
@@ -231,15 +231,7 @@ func (c *Channel) IsRunning() bool {
 }
 
 func (c *Channel) IsAllowed(senderID string) bool {
-	if len(c.config.AllowFrom) == 0 {
-		return true
-	}
-	for _, allowed := range c.config.AllowFrom {
-		if allowed == senderID {
-			return true
-		}
-	}
-	return false
+	return models.IsSenderAllowed(c.config.AllowFrom, senderID)
 }
 
 func (c *Channel) IsAllowedSender(sender models.SenderInfo) bool {

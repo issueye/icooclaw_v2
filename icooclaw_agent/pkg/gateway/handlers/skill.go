@@ -529,7 +529,7 @@ func (h *SkillHandler) importSkillItems(ctx context.Context, items []skillTransp
 	skip := 0
 	parser := skillpkg.NewParser()
 	for _, item := range items {
-		identifier := firstNonEmpty(item.Name, item.Title)
+		identifier := utils.FirstNonEmpty(item.Name, item.Title)
 		existing, err := h.storage.Skill().GetSkill(identifier)
 		if err != nil && err != icooclawErrors.ErrRecordNotFound {
 			return success, skip, err
@@ -556,7 +556,7 @@ func (h *SkillHandler) importSkillItems(ctx context.Context, items []skillTransp
 			return success, skip, fmt.Errorf("解析技能 %s 失败: %w", identifier, err)
 		}
 
-		resolvedVersion := firstNonEmpty(parsed.Version, item.Version)
+		resolvedVersion := utils.FirstNonEmpty(parsed.Version, item.Version)
 		finalDirName := parsed.Name
 		if strings.TrimSpace(resolvedVersion) != "" {
 			finalDirName = fmt.Sprintf("%s-%s", parsed.Name, resolvedVersion)
@@ -578,7 +578,7 @@ func (h *SkillHandler) importSkillItems(ctx context.Context, items []skillTransp
 
 		skillRecord := &storage.Skill{
 			Name:        parsed.Name,
-			Title:       firstNonEmpty(item.Title, parsed.Title, parsed.Name),
+			Title:       utils.FirstNonEmpty(item.Title, parsed.Title, parsed.Name),
 			Description: parsed.Description,
 			Version:     resolvedVersion,
 			Path:        finalRelativePath,
@@ -606,7 +606,7 @@ func (h *SkillHandler) importSkillItems(ctx context.Context, items []skillTransp
 func buildImportedSkillFileContent(item skillTransportItem) (string, error) {
 	content := strings.TrimSpace(item.Content)
 	if content == "" {
-		return "", fmt.Errorf("技能 %s 缺少内容", firstNonEmpty(item.Name, item.Title))
+		return "", fmt.Errorf("技能 %s 缺少内容", utils.FirstNonEmpty(item.Name, item.Title))
 	}
 
 	skill := &skillpkg.ParsedSkill{
@@ -630,7 +630,7 @@ func buildImportedSkillFileContent(item skillTransportItem) (string, error) {
 
 	var sb strings.Builder
 	sb.WriteString("---\n")
-	displayName := firstNonEmpty(skill.Title, skill.Name)
+	displayName := utils.FirstNonEmpty(skill.Title, skill.Name)
 	sb.WriteString(fmt.Sprintf("name: %s\n", displayName))
 	if skill.Name != "" && skill.Name != displayName {
 		sb.WriteString(fmt.Sprintf("slug: %s\n", skill.Name))
@@ -664,7 +664,7 @@ func collectSkillItemsFromDir(root string) ([]skillTransportItem, error) {
 		}
 		items = append(items, skillTransportItem{
 			Name:        parsed.Name,
-			Title:       firstNonEmpty(parsed.Title, parsed.Name),
+			Title:       utils.FirstNonEmpty(parsed.Title, parsed.Name),
 			Description: parsed.Description,
 			Version:     parsed.Version,
 			FileContent: string(content),
@@ -742,13 +742,4 @@ func (h *SkillHandler) resolvePathUnderWorkspace(relativePath string) (string, e
 		return "", fmt.Errorf("非法技能路径: %s", relativePath)
 	}
 	return target, nil
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }

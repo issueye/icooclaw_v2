@@ -171,6 +171,7 @@ import {
 import AgentProcessPanel from "@/components/AgentProcessPanel.vue";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
 import ToastContainer from "@/components/ToastContainer.vue";
+import { isWailsEnv } from "@/services/wails.js";
 
 const themeStore = useThemeStore();
 themeStore.initTheme();
@@ -235,10 +236,6 @@ const menuItems = [
 ];
 
 const route = useRoute();
-
-function isWailsEnv() {
-  return typeof window !== 'undefined' && window.go !== undefined;
-}
 
 async function checkApiHealth() {
   try {
