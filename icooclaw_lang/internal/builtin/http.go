@@ -18,18 +18,25 @@ import (
 
 var defaultHTTPClient = &nethttp.Client{Timeout: 10 * time.Second}
 
+const anyMethod = "*"
+
 type nativeHTTPRoute struct {
+	method     string
 	statusCode int
 	body       string
 	headers    nethttp.Header
+	filePath   string
 }
 
 type nativeHTTPServer struct {
-	mu       sync.Mutex
-	routes   map[string]nativeHTTPRoute
-	server   *nethttp.Server
-	listener net.Listener
-	addr     string
+	mu           sync.Mutex
+	routes       map[string]nativeHTTPRoute
+	notFound     *nativeHTTPRoute
+	server       *nethttp.Server
+	listener     net.Listener
+	addr         string
+	startedAt    time.Time
+	requestCount int64
 }
 
 func newHTTPLib() *object.Hash {
@@ -91,6 +98,7 @@ func newHTTPClientLib() *object.Hash {
 			if errObj != nil {
 				return errObj
 			}
+
 			body := ""
 			var headers *object.Hash
 			if len(args) >= 3 {
@@ -107,6 +115,7 @@ func newHTTPClientLib() *object.Hash {
 					return errObj
 				}
 			}
+
 			return doHTTPRequest(strings.ToUpper(method), url, body, headers)
 		}),
 	})
@@ -130,72 +139,114 @@ func newServerObject() *object.Hash {
 
 	return hashObject(map[string]object.Object{
 		"route": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
-			if len(args) != 2 && len(args) != 3 {
-				return object.NewError(0, "wrong number of arguments. got=%d, want=2 or 3", len(args))
-			}
-			path, errObj := stringArg(args[0], "first argument to `route` must be STRING, got %s")
+			method, path, payloadOffset, errObj := parseRouteTargetArgs(args, 2, 3)
 			if errObj != nil {
 				return errObj
 			}
-			body, errObj := stringArg(args[1], "second argument to `route` must be STRING, got %s")
+
+			body, errObj := stringArg(args[payloadOffset], "route body must be STRING, got %s")
 			if errObj != nil {
 				return errObj
 			}
+
 			contentType := "text/plain; charset=utf-8"
-			if len(args) == 3 {
-				contentType, errObj = stringArg(args[2], "third argument to `route` must be STRING, got %s")
+			if len(args) == payloadOffset+2 {
+				contentType, errObj = stringArg(args[payloadOffset+1], "route content_type must be STRING, got %s")
 				if errObj != nil {
 					return errObj
 				}
 			}
-			state.mu.Lock()
-			state.routes[path] = nativeHTTPRoute{
+
+			state.setRoute(path, nativeHTTPRoute{
+				method:     method,
 				statusCode: 200,
 				body:       body,
 				headers:    nethttp.Header{"Content-Type": []string{contentType}},
-			}
-			state.mu.Unlock()
+			})
 			return &object.Null{}
 		}),
 		"route_json": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
-			if len(args) != 2 {
-				return object.NewError(0, "wrong number of arguments. got=%d, want=2", len(args))
-			}
-			path, errObj := stringArg(args[0], "first argument to `route_json` must be STRING, got %s")
+			method, path, payloadOffset, errObj := parseRouteTargetArgs(args, 2, 2)
 			if errObj != nil {
 				return errObj
 			}
-			payload, err := json.Marshal(nativeValue(args[1]))
+
+			payload, err := json.Marshal(nativeValue(args[payloadOffset]))
 			if err != nil {
 				return object.NewError(0, "could not encode json response: %s", err.Error())
 			}
-			state.mu.Lock()
-			state.routes[path] = nativeHTTPRoute{
+
+			state.setRoute(path, nativeHTTPRoute{
+				method:     method,
 				statusCode: 200,
 				body:       string(payload),
 				headers:    nethttp.Header{"Content-Type": []string{"application/json"}},
-			}
-			state.mu.Unlock()
+			})
 			return &object.Null{}
 		}),
 		"route_response": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
-			if len(args) != 2 {
-				return object.NewError(0, "wrong number of arguments. got=%d, want=2", len(args))
-			}
-			path, errObj := stringArg(args[0], "first argument to `route_response` must be STRING, got %s")
+			method, path, payloadOffset, errObj := parseRouteTargetArgs(args, 2, 2)
 			if errObj != nil {
 				return errObj
 			}
-			responseHash, errObj := hashArg(args[1], "second argument to `route_response` must be HASH, got %s")
+
+			responseHash, errObj := hashArg(args[payloadOffset], "route_response payload must be HASH, got %s")
 			if errObj != nil {
 				return errObj
 			}
+
 			route, errObj := parseRouteResponse(responseHash)
 			if errObj != nil {
 				return errObj
 			}
+			route.method = method
+			state.setRoute(path, route)
+			return &object.Null{}
+		}),
+		"route_file": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			method, path, payloadOffset, errObj := parseRouteTargetArgs(args, 2, 3)
+			if errObj != nil {
+				return errObj
+			}
+
+			filePath, errObj := stringArg(args[payloadOffset], "route_file file_path must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+
+			headers := make(nethttp.Header)
+			if len(args) == payloadOffset+2 {
+				contentType, errObj := stringArg(args[payloadOffset+1], "route_file content_type must be STRING, got %s")
+				if errObj != nil {
+					return errObj
+				}
+				headers.Set("Content-Type", contentType)
+			}
+
+			state.setRoute(path, nativeHTTPRoute{
+				method:     method,
+				statusCode: 200,
+				filePath:   filePath,
+				headers:    headers,
+			})
+			return &object.Null{}
+		}),
+		"not_found": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+			}
+			responseHash, errObj := hashArg(args[0], "first argument to `not_found` must be HASH, got %s")
+			if errObj != nil {
+				return errObj
+			}
+
+			route, errObj := parseRouteResponse(responseHash)
+			if errObj != nil {
+				return errObj
+			}
+
 			state.mu.Lock()
-			state.routes[path] = route
+			state.notFound = &route
 			state.mu.Unlock()
 			return &object.Null{}
 		}),
@@ -223,25 +274,33 @@ func newServerObject() *object.Hash {
 			server := &nethttp.Server{
 				Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
 					state.mu.Lock()
-					route, ok := state.routes[r.URL.Path]
+					state.requestCount++
+					route, ok := state.lookupRoute(strings.ToUpper(r.Method), r.URL.Path)
+					notFound := state.notFound
 					state.mu.Unlock()
+
 					if !ok {
+						if notFound != nil {
+							if err := writeRouteResponse(w, *notFound); err != nil {
+								nethttp.Error(w, err.Error(), nethttp.StatusInternalServerError)
+							}
+							return
+						}
 						nethttp.NotFound(w, r)
 						return
 					}
-					for key, values := range route.headers {
-						for _, value := range values {
-							w.Header().Add(key, value)
-						}
+
+					if err := writeRouteResponse(w, route); err != nil {
+						nethttp.Error(w, err.Error(), nethttp.StatusInternalServerError)
 					}
-					w.WriteHeader(route.statusCode)
-					_, _ = w.Write([]byte(route.body))
 				}),
 			}
 
 			state.server = server
 			state.listener = listener
 			state.addr = normalizeServerAddr(listener.Addr().String())
+			state.startedAt = time.Now()
+			state.requestCount = 0
 			state.mu.Unlock()
 
 			env.Go(func() {
@@ -256,6 +315,7 @@ func newServerObject() *object.Hash {
 			if len(args) != 0 {
 				return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
 			}
+
 			state.mu.Lock()
 			server := state.server
 			state.server = nil
@@ -264,6 +324,7 @@ func newServerObject() *object.Hash {
 			if server == nil {
 				return &object.Null{}
 			}
+
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 			if err := server.Shutdown(ctx); err != nil {
@@ -281,6 +342,52 @@ func newServerObject() *object.Hash {
 				return &object.Null{}
 			}
 			return &object.String{Value: state.addr}
+		}),
+		"url": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+			}
+			path, errObj := stringArg(args[0], "first argument to `url` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+			state.mu.Lock()
+			defer state.mu.Unlock()
+			if state.addr == "" {
+				return &object.Null{}
+			}
+			if !strings.HasPrefix(path, "/") {
+				path = "/" + path
+			}
+			return &object.String{Value: "http://" + state.addr + path}
+		}),
+		"is_running": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 0 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
+			}
+			state.mu.Lock()
+			defer state.mu.Unlock()
+			return boolObject(state.server != nil)
+		}),
+		"stats": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 0 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
+			}
+			state.mu.Lock()
+			defer state.mu.Unlock()
+
+			uptimeMs := int64(0)
+			if !state.startedAt.IsZero() {
+				uptimeMs = time.Since(state.startedAt).Milliseconds()
+			}
+
+			return hashObject(map[string]object.Object{
+				"addr":          &object.String{Value: state.addr},
+				"is_running":    boolObject(state.server != nil),
+				"route_count":   &object.Integer{Value: int64(len(state.routes))},
+				"request_count": &object.Integer{Value: state.requestCount},
+				"uptime_ms":     &object.Integer{Value: uptimeMs},
+			})
 		}),
 	})
 }
@@ -345,9 +452,18 @@ func applyHeaders(dst nethttp.Header, headers *object.Hash) {
 
 func parseRouteResponse(hash *object.Hash) (nativeHTTPRoute, *object.Error) {
 	route := nativeHTTPRoute{
+		method:     anyMethod,
 		statusCode: 200,
 		body:       "",
 		headers:    make(nethttp.Header),
+	}
+
+	if pair, ok := hash.Pairs["method"]; ok {
+		method, errObj := stringArg(pair.Value, "field `method` must be STRING, got %s")
+		if errObj != nil {
+			return route, errObj
+		}
+		route.method = strings.ToUpper(method)
 	}
 	if pair, ok := hash.Pairs["status_code"]; ok {
 		statusCode, errObj := integerArg(pair.Value, "field `status_code` must be INTEGER, got %s")
@@ -363,6 +479,13 @@ func parseRouteResponse(hash *object.Hash) (nativeHTTPRoute, *object.Error) {
 		}
 		route.body = body
 	}
+	if pair, ok := hash.Pairs["file_path"]; ok {
+		filePath, errObj := stringArg(pair.Value, "field `file_path` must be STRING, got %s")
+		if errObj != nil {
+			return route, errObj
+		}
+		route.filePath = filePath
+	}
 	if pair, ok := hash.Pairs["headers"]; ok {
 		headerHash, errObj := hashArg(pair.Value, "field `headers` must be HASH, got %s")
 		if errObj != nil {
@@ -371,35 +494,6 @@ func parseRouteResponse(hash *object.Hash) (nativeHTTPRoute, *object.Error) {
 		applyHeaders(route.headers, headerHash)
 	}
 	return route, nil
-}
-
-func nativeValue(obj object.Object) interface{} {
-	switch value := obj.(type) {
-	case *object.String:
-		return value.Value
-	case *object.Integer:
-		return value.Value
-	case *object.Float:
-		return value.Value
-	case *object.Boolean:
-		return value.Value
-	case *object.Null:
-		return nil
-	case *object.Array:
-		result := make([]interface{}, 0, len(value.Elements))
-		for _, item := range value.Elements {
-			result = append(result, nativeValue(item))
-		}
-		return result
-	case *object.Hash:
-		result := make(map[string]interface{}, len(value.Pairs))
-		for _, pair := range value.Pairs {
-			result[pair.Key.Inspect()] = nativeValue(pair.Value)
-		}
-		return result
-	default:
-		return value.Inspect()
-	}
 }
 
 func normalizeServerAddr(addr string) string {
@@ -411,4 +505,89 @@ func normalizeServerAddr(addr string) string {
 		host = "127.0.0.1"
 	}
 	return net.JoinHostPort(host, port)
+}
+
+func parseRouteTargetArgs(args []object.Object, legacyMinArgs, legacyMaxArgs int) (string, string, int, *object.Error) {
+	if len(args) < legacyMinArgs || len(args) > legacyMaxArgs+1 {
+		return "", "", 0, object.NewError(0, "wrong number of arguments. got=%d", len(args))
+	}
+
+	if len(args) >= legacyMinArgs+1 {
+		if methodValue, ok := args[0].(*object.String); ok && looksLikeHTTPMethod(methodValue.Value) {
+			path, errObj := stringArg(args[1], "route path must be STRING, got %s")
+			if errObj != nil {
+				return "", "", 0, errObj
+			}
+			return normalizeHTTPMethod(methodValue.Value), path, 2, nil
+		}
+	}
+
+	path, errObj := stringArg(args[0], "route path must be STRING, got %s")
+	if errObj != nil {
+		return "", "", 0, errObj
+	}
+	return anyMethod, path, 1, nil
+}
+
+func looksLikeHTTPMethod(value string) bool {
+	switch strings.ToUpper(value) {
+	case anyMethod, "ANY", "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeHTTPMethod(value string) string {
+	value = strings.ToUpper(value)
+	if value == "ANY" {
+		return anyMethod
+	}
+	return value
+}
+
+func routeKey(method, path string) string {
+	return method + " " + path
+}
+
+func (s *nativeHTTPServer) setRoute(path string, route nativeHTTPRoute) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if route.method == "" {
+		route.method = anyMethod
+	}
+	s.routes[routeKey(normalizeHTTPMethod(route.method), path)] = route
+}
+
+func (s *nativeHTTPServer) lookupRoute(method, path string) (nativeHTTPRoute, bool) {
+	if route, ok := s.routes[routeKey(normalizeHTTPMethod(method), path)]; ok {
+		return route, true
+	}
+	route, ok := s.routes[routeKey(anyMethod, path)]
+	return route, ok
+}
+
+func writeRouteResponse(w nethttp.ResponseWriter, route nativeHTTPRoute) error {
+	for key, values := range route.headers {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+
+	if route.filePath != "" {
+		data, err := os.ReadFile(route.filePath)
+		if err != nil {
+			return err
+		}
+		if route.headers.Get("Content-Type") == "" {
+			w.Header().Set("Content-Type", nethttp.DetectContentType(data))
+		}
+		w.WriteHeader(route.statusCode)
+		_, err = w.Write(data)
+		return err
+	}
+
+	w.WriteHeader(route.statusCode)
+	_, err := w.Write([]byte(route.body))
+	return err
 }

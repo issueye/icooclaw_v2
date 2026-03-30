@@ -1,0 +1,16 @@
+# json/time/os demo
+
+payload = {"name": "icooclaw", "langs": ["go", "is"], "ok": true}
+encoded = json.stringify_pretty(payload)
+print(encoded)
+
+decoded = json.parse(encoded)
+print(decoded.name)
+print(decoded.langs[0])
+
+os.setenv("ICOOCLAW_MODE", "demo")
+print(os.getenv("ICOOCLAW_MODE"))
+print(os.cwd())
+
+now = time.now()
+print(now.rfc_3339)
