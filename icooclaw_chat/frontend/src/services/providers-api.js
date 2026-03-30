@@ -1,50 +1,16 @@
-import { createPageRequest, request } from "./http";
+import { createCrudApi, request } from "./common-api";
 
-export async function getProvidersPage(params = {}) {
-  return request("/api/v1/providers/page", {
-    method: "POST",
-    body: JSON.stringify({
-      ...createPageRequest(params.page, params.size),
-      key_word: params.key_word || "",
-      enabled: params.enabled,
-    }),
-  });
-}
+const api = createCrudApi("providers");
 
-export async function getProviders() {
-  return request("/api/v1/providers/all");
-}
+const p = api.getPage;
+export const getProviders = api.getAll;
+export const getEnabledProviders = api.getEnabled;
+export const getProvider = api.getById;
+export const createProvider = api.create;
+export const updateProvider = api.update;
+export const deleteProvider = api.remove;
 
-export async function getEnabledProviders() {
-  return request("/api/v1/providers/enabled");
-}
-
-export async function getProvider(id) {
-  return request("/api/v1/providers/get", {
-    method: "POST",
-    body: JSON.stringify({ id }),
-  });
-}
-
-export async function createProvider(data) {
-  return request("/api/v1/providers/create", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-export async function updateProvider(data) {
-  return request("/api/v1/providers/update", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-export async function deleteProvider(id) {
-  return request("/api/v1/providers/delete", {
-    method: "POST",
-    body: JSON.stringify({ id }),
-  });
+export const setDefaultModel = request("/api/v1/params/default-model/get");
 }
 
 export async function setDefaultModel(data) {
@@ -52,8 +18,4 @@ export async function setDefaultModel(data) {
     method: "POST",
     body: JSON.stringify(data),
   });
-}
-
-export async function getDefaultModel() {
-  return request("/api/v1/params/default-model/get");
 }

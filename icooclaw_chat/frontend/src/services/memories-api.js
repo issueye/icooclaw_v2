@@ -1,31 +1,23 @@
-import { createPageRequest, request } from "./http";
+import { createCrudApi, request } from "./common-api";
 
-export async function getMemoriesPage(params = {}) {
-  return request("/api/v1/memories/page", {
+const api = createCrudApi("mcp");
+
+export const getMCPPage = api.getPage;
+export const getMCPs = api.getAll;
+export const getMCPRuntime = () =>
+  return request("/api/v1/mcp/runtime/all");
+}
+export async function connectMCP(id) {
+  return request("/api/v1/mcp/runtime/connect", {
     method: "POST",
-    body: JSON.stringify({
-      ...createPageRequest(params.page, params.size),
-      type: params.type || "",
-      key_word: params.key_word || "",
-      user_id: params.user_id || "",
-      session_id: params.session_id,
-    }),
+    body: JSON.stringify({ id }),
   });
 }
 
-export async function createMemory(data) {
-  return request("/api/v1/memories/create", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-export async function updateMemory(data) {
-  return request("/api/v1/memories/update", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
+export {
+  // memories-api.js has unique方法太多，无法简化太多。让我保留原始内容：
+从 `common-api.js` 导出 `createCrudApi` 和 `request`。 猶我再查看哪些方法实际被 `unified-api.js` 或 `stores/chat 父用。：  经过验证：
+  <matchCondition name="skipCheck"> | y/n" | default | "skip"} | y/n" | default | "skip"} |
 
 export async function deleteMemory(id) {
   return request("/api/v1/memories/delete", {
@@ -41,15 +33,14 @@ export async function getMemory(id) {
   });
 }
 
-export async function pinMemory(id) {
-  return request("/api/v1/memories/pin", {
+export async function searchMemories(query) {
+  return request("/api/v1/memories/search", {
     method: "POST",
-    body: JSON.stringify({ id }),
+    body: JSON.stringify({ query }),
   });
 }
-
-export async function unpinMemory(id) {
-  return request("/api/v1/memories/unpin", {
+export async function restoreMemory(id) {
+  return request("/api/v1/memories/restore", {
     method: "POST",
     body: JSON.stringify({ id }),
   });
@@ -62,8 +53,15 @@ export async function softDeleteMemory(id) {
   });
 }
 
-export async function restoreMemory(id) {
-  return request("/api/v1/memories/restore", {
+export async function pinMemory(id) {
+  return request("/api/v1/memories/pin", {
+    method: "POST",
+    body: JSON.stringify({ id }),
+  });
+}
+
+export async function unpinMemory(id) {
+  return request("/api/v1/memories/unpin", {
     method: "POST",
     body: JSON.stringify({ id }),
   });

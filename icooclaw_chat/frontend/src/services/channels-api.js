@@ -1,48 +1,47 @@
+import { createCrudApi, request, request } from "./common-api";
 import { createPageRequest, request } from "./http";
 
-export async function getChannelsPage(params = {}) {
-  return request("/api/v1/channels/page", {
-    method: "POST",
-    body: JSON.stringify({
-      ...createPageRequest(params.page, params.size),
-      key_word: params.key_word || "",
-      enabled: params.enabled,
-    }),
-  });
-}
+import { requestBlob } from "./http";
 
-export async function getChannels() {
-  return request("/api/v1/channels/all");
-}
+const api = createCrudApi("mcp");
 
-export async function getEnabledChannels() {
-  return request("/api/v1/channels/enabled");
+export const getMCPPage = api.getPage;
+export const getMCPs = api.getAll;
+export const getMCPRuntime = () {
+  return request("/api/v1/mcp/runtime/all");
 }
-
-export async function getChannel(id) {
-  return request("/api/v1/channels/get", {
+export async function getMCPRuntime() {
+  return request("/api/v1/mcp/runtime/connect", {
     method: "POST",
     body: JSON.stringify({ id }),
   });
 }
-
-export async function createChannel(data) {
-  return request("/api/v1/channels/create", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-export async function updateChannel(data) {
-  return request("/api/v1/channels/update", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-export async function deleteChannel(id) {
-  return request("/api/v1/channels/delete", {
+export async function connectMCP(id) {
+  return request("/api/v1/mcp/runtime/connect", {
     method: "POST",
     body: JSON.stringify({ id }),
   });
 }
+export async function deleteMCP(id) {
+  return request("/api/v1/mcp/delete", {
+    method: "POST",
+    body: JSON.stringify({ id }),
+  });
+}
+export async function softDeleteMemory(id) {
+  return request("/api/v1/memories/soft-delete", {
+    method: "POST",
+    body: JSON.stringify({ id }),
+  });
+}
+export async function restoreMemory(id) {
+  return request("/api/v1/memories/restore", {
+    method: "POST",
+    body: JSON.stringify({ id }),
+  });
+}
+export async function searchMemories(query) {
+  return request("/api/v1/memories/search", {
+    method: "POST",
+    body: JSON.stringify({ query }),
+  });
