@@ -1,0 +1,147 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+
+	"github.com/issueye/icooclaw_lang/internal/evaluator"
+	"github.com/issueye/icooclaw_lang/internal/lexer"
+	"github.com/issueye/icooclaw_lang/internal/object"
+	"github.com/issueye/icooclaw_lang/internal/parser"
+)
+
+const VERSION = "0.1.0"
+
+func main() {
+	runCmd := flag.NewFlagSet("run", flag.ExitOnError)
+	versionFlag := flag.Bool("version", false, "print version")
+
+	if len(os.Args) < 2 {
+		fmt.Println("icooclaw script language v" + VERSION)
+		fmt.Println()
+		fmt.Println("Usage:")
+		fmt.Println("  iclang run <file.is>    Run a script file")
+		fmt.Println("  iclang version          Show version")
+		fmt.Println("  iclang repl             Start interactive REPL")
+		os.Exit(0)
+	}
+
+	if *versionFlag {
+		fmt.Println("iclang v" + VERSION)
+		return
+	}
+
+	switch os.Args[1] {
+	case "run":
+		runCmd.Parse(os.Args[2:])
+		args := runCmd.Args()
+		if len(args) == 0 {
+			fmt.Println("Error: no input file specified")
+			fmt.Println("Usage: iclang run <file.is>")
+			os.Exit(1)
+		}
+		runFile(args[0])
+	case "version":
+		fmt.Println("iclang v" + VERSION)
+	case "repl":
+		startRepl()
+	default:
+		fmt.Printf("Unknown command: %s\n", os.Args[1])
+		os.Exit(1)
+	}
+}
+
+func runFile(filename string) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		fmt.Printf("Error: could not read file '%s': %s\n", filename, err)
+		os.Exit(1)
+	}
+
+	l := lexer.New(string(data))
+	p := parser.New(l)
+
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		for _, e := range p.Errors() {
+			fmt.Println("Parse Error:", e)
+		}
+		os.Exit(1)
+	}
+
+	env := object.NewEnvironment()
+	result := evaluator.Eval(program, env)
+
+	if result != nil {
+		if err, ok := result.(*object.Error); ok {
+			fmt.Println(err.Inspect())
+			os.Exit(1)
+		}
+	}
+}
+
+func startRepl() {
+	fmt.Println("iclang REPL v" + VERSION)
+	fmt.Println("Type 'exit' to quit, 'help' for help")
+	fmt.Println()
+
+	env := object.NewEnvironment()
+
+	for {
+		fmt.Print("iclang> ")
+
+		var input string
+		fmt.Scanln(&input)
+
+		if input == "exit" || input == "quit" {
+			fmt.Println("Bye!")
+			break
+		}
+		if input == "help" {
+			printHelp()
+			continue
+		}
+		if input == "" {
+			continue
+		}
+
+		l := lexer.New(input)
+		p := parser.New(l)
+
+		program := p.ParseProgram()
+		if len(p.Errors()) > 0 {
+			for _, e := range p.Errors() {
+				fmt.Println("Error:", e)
+			}
+			continue
+		}
+
+		result := evaluator.Eval(program, env)
+		if result != nil {
+			if err, ok := result.(*object.Error); ok {
+				fmt.Println(err.Inspect())
+			} else if _, ok := result.(*object.Null); !ok {
+				fmt.Println(result.Inspect())
+			}
+		}
+	}
+}
+
+func printHelp() {
+	fmt.Println("icooclaw script language (iclang)")
+	fmt.Println()
+	fmt.Println("Keywords: fn, if, else, for, while, match, break, continue,")
+	fmt.Println("          return, const, import, export, try, catch, go,")
+	fmt.Println("          select, interface, type, null, true, false, in")
+	fmt.Println()
+	fmt.Println("Built-in functions:")
+	fmt.Println("  print(...), len(obj), range(n), type(obj),")
+	fmt.Println("  str(obj), int(obj), float(obj), input(msg),")
+	fmt.Println("  push(arr, val), pop(arr), abs(n),")
+	fmt.Println("  read_file(path), write_file(path, content)")
+	fmt.Println()
+	fmt.Println("Commands:")
+	fmt.Println("  exit/quit - exit REPL")
+	fmt.Println("  help      - show this help")
+}

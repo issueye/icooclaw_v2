@@ -1,6 +1,0 @@
-{"time":"2026-03-30T09:34:44+08:00","level":"WARN","msg":"未找到默认模型，需要配置","key":"agent.default_model"}
-{"time":"2026-03-30T09:34:44+08:00","level":"INFO","msg":"调度器已启动","component":"scheduler"}
-{"time":"2026-03-30T09:34:44+08:00","level":"INFO","msg":"已启动","component":"gateway","addr":":16789"}
-{"time":"2026-03-30T09:34:44+08:00","level":"INFO","msg":"代理循环已启动"}
-{"time":"2026-03-30T09:34:44+08:00","level":"INFO","msg":"outbound监听已启动"}
-{"time":"2026-03-30T09:34:44+08:00","level":"INFO","msg":"渠道管理器启动完成，Listen 已就绪"}

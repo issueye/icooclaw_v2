@@ -1,0 +1,73 @@
+# hello.is - icooclaw script language example
+
+# variable
+name = "world"
+count = 42
+
+# constant
+const PI = 3.14159
+
+# function
+fn greet(name) {
+    print("Hello, " + name + "!")
+}
+
+# call function
+greet(name)
+
+# if / else
+if count > 10 {
+    print("large")
+} else {
+    print("small")
+}
+
+# for loop
+sum = 0
+for i in range(10) {
+    sum += i
+}
+print("sum = " + str(sum))
+
+# while loop
+n = 5
+while n > 0 {
+    print("n = " + str(n))
+    n -= 1
+}
+
+# array
+numbers = [1, 2, 3, 4, 5]
+for num in numbers {
+    print(num)
+}
+
+# dict
+person = {"name": "Alice", "age": 30}
+print(person["name"])
+print(person["age"])
+
+# match
+x = 3
+result = match x {
+    1 -> "one"
+    2 -> "two"
+    3 -> "three"
+    _ -> "other"
+}
+print("match result: " + result)
+
+# try / catch
+try {
+    null_value = null
+} catch err {
+    print("caught: " + err)
+}
+
+# string methods
+msg = "Hello, World!"
+print(msg.len())
+print(msg.upper())
+print(msg.lower())
+print(msg.split(", "))
+print(msg.contains("World"))
