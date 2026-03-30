@@ -68,6 +68,18 @@ func (e *Environment) Wait() {
 	e.runtime.wg.Wait()
 }
 
+func (e *Environment) Call(fn Object, args []Object, line int) Object {
+	e.runtime.mu.RLock()
+	caller := e.runtime.caller
+	e.runtime.mu.RUnlock()
+
+	if caller == nil {
+		return NewError(line, "no runtime caller registered")
+	}
+
+	return caller(e, fn, args, line)
+}
+
 func (e *Environment) Go(fn func()) {
 	e.runtime.wg.Add(1)
 	go func() {

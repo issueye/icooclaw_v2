@@ -38,10 +38,8 @@ func evalHashMethod(hash *object.Hash, method string, args []object.Object, line
 	}
 
 	switch callee := pair.Value.(type) {
-	case *object.Builtin:
-		return callee.Fn(env, args...)
-	case *object.Function:
-		return callFunction(callee, args, line)
+	case *object.Builtin, *object.Function:
+		return callRuntimeObject(env, callee, args, line)
 	default:
 		return object.NewError(line, "property '%s' is not callable", method)
 	}

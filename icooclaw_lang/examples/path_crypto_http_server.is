@@ -18,12 +18,21 @@ server = http.server.new()
 server.route("GET", "/hello", "hello world")
 server.route_response("POST", "/hello", {"status_code": 201, "body": "created"})
 server.route_file("/file", "served_demo.txt")
+fn echo(req) {
+    if req.method == "POST" {
+        return {"status_code": 202, "body": "echo:" + req.body}
+    }
+    return {"message": "hello " + req.query.name, "path": req.path}
+}
+server.handle("/echo", echo)
 server.not_found({"status_code": 404, "body": "custom not found"})
 addr = server.start("127.0.0.1:0")
 
 print(http.client.get(server.url("/hello")).body)
 print(http.client.request("POST", server.url("/hello"), null).status_code)
 print(http.client.get(server.url("/file")).body)
+print(http.client.get(server.url("/echo?name=icooclaw")).body)
+print(http.client.request("POST", server.url("/echo"), "world").status_code)
 print(http.client.get(server.url("/missing")).body)
 print(server.stats().request_count)
 

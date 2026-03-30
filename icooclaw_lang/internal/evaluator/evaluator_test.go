@@ -322,6 +322,64 @@ server.stop()
 	}
 }
 
+func TestHTTPServerScriptHandler(t *testing.T) {
+	env, result := evalSource(t, `
+fn greet(req) {
+    if req.method == "POST" {
+        return {
+            "status_code": 202,
+            "body": "hello:" + req.body,
+            "headers": {"X-Mode": "post"},
+        }
+    }
+
+    return {
+        "message": "hello " + req.query.name,
+        "path": req.path,
+    }
+}
+
+server = http.server.new()
+server.handle("/greet", greet)
+addr = server.start("127.0.0.1:0")
+get_resp = http.client.get(server.url("/greet?name=icooclaw"))
+post_resp = http.client.request("POST", server.url("/greet"), "world")
+stats_before_stop = server.stats()
+server.stop()
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	getResp, _ := env.Get("get_resp")
+	getHash := getResp.(*object.Hash)
+	if getHash.Pairs["status_code"].Value.Inspect() != "200" {
+		t.Fatalf("expected get status=200, got %s", getHash.Pairs["status_code"].Value.Inspect())
+	}
+	if getHash.Pairs["body"].Value.Inspect() != `{"message":"hello icooclaw","path":"/greet"}` {
+		t.Fatalf("unexpected get body: %s", getHash.Pairs["body"].Value.Inspect())
+	}
+
+	postResp, _ := env.Get("post_resp")
+	postHash := postResp.(*object.Hash)
+	if postHash.Pairs["status_code"].Value.Inspect() != "202" {
+		t.Fatalf("expected post status=202, got %s", postHash.Pairs["status_code"].Value.Inspect())
+	}
+	if postHash.Pairs["body"].Value.Inspect() != "hello:world" {
+		t.Fatalf("unexpected post body: %s", postHash.Pairs["body"].Value.Inspect())
+	}
+	postHeaders := postHash.Pairs["headers"].Value.(*object.Hash)
+	if postHeaders.Pairs["X-Mode"].Value.(*object.Array).Elements[0].Inspect() != "post" {
+		t.Fatalf("expected X-Mode=post, got %s", postHeaders.Pairs["X-Mode"].Value.Inspect())
+	}
+
+	stats, _ := env.Get("stats_before_stop")
+	if stats.(*object.Hash).Pairs["request_count"].Value.Inspect() != "2" {
+		t.Fatalf("expected request_count=2, got %s", stats.(*object.Hash).Pairs["request_count"].Value.Inspect())
+	}
+}
+
 func TestJSONLibraryEncodeDecode(t *testing.T) {
 	env, result := evalSource(t, `
 payload = {"name": "alice", "count": 2, "items": [1, true, null]}

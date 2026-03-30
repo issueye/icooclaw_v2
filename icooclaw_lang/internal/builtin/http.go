@@ -26,6 +26,8 @@ type nativeHTTPRoute struct {
 	body       string
 	headers    nethttp.Header
 	filePath   string
+	handler    object.Object
+	handlerEnv *object.Environment
 }
 
 type nativeHTTPServer struct {
@@ -231,6 +233,27 @@ func newServerObject() *object.Hash {
 			})
 			return &object.Null{}
 		}),
+		"handle": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			method, path, payloadOffset, errObj := parseRouteTargetArgs(args, 2, 2)
+			if errObj != nil {
+				return errObj
+			}
+
+			switch args[payloadOffset].(type) {
+			case *object.Function, *object.Builtin:
+			default:
+				return object.NewError(0, "handle handler must be FUNCTION or BUILTIN, got %s", args[payloadOffset].Type())
+			}
+
+			state.setRoute(path, nativeHTTPRoute{
+				method:     method,
+				statusCode: 200,
+				headers:    make(nethttp.Header),
+				handler:    args[payloadOffset],
+				handlerEnv: env,
+			})
+			return &object.Null{}
+		}),
 		"not_found": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
@@ -288,6 +311,15 @@ func newServerObject() *object.Hash {
 						}
 						nethttp.NotFound(w, r)
 						return
+					}
+
+					if route.handler != nil {
+						responseRoute, errObj := invokeHTTPHandler(route, r)
+						if errObj != nil {
+							nethttp.Error(w, errObj.Message, nethttp.StatusInternalServerError)
+							return
+						}
+						route = responseRoute
 					}
 
 					if err := writeRouteResponse(w, route); err != nil {
@@ -590,4 +622,116 @@ func writeRouteResponse(w nethttp.ResponseWriter, route nativeHTTPRoute) error {
 	w.WriteHeader(route.statusCode)
 	_, err := w.Write([]byte(route.body))
 	return err
+}
+
+func invokeHTTPHandler(route nativeHTTPRoute, r *nethttp.Request) (nativeHTTPRoute, *object.Error) {
+	if route.handler == nil || route.handlerEnv == nil {
+		return nativeHTTPRoute{}, object.NewError(0, "http handler is not configured")
+	}
+
+	requestObject, errObj := buildHTTPRequestObject(r)
+	if errObj != nil {
+		return nativeHTTPRoute{}, errObj
+	}
+
+	result := route.handlerEnv.Call(route.handler, []object.Object{requestObject}, 0)
+	if errObj, ok := result.(*object.Error); ok {
+		return nativeHTTPRoute{}, errObj
+	}
+
+	return responseRouteFromObject(result)
+}
+
+func buildHTTPRequestObject(r *nethttp.Request) (*object.Hash, *object.Error) {
+	body := ""
+	if r.Body != nil {
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			return nil, object.NewError(0, "could not read request body: %s", err.Error())
+		}
+		body = string(data)
+	}
+
+	headerPairs := make(map[string]object.Object, len(r.Header))
+	for key, values := range r.Header {
+		items := make([]object.Object, 0, len(values))
+		for _, value := range values {
+			items = append(items, &object.String{Value: value})
+		}
+		headerPairs[key] = &object.Array{Elements: items}
+	}
+
+	queryPairs := make(map[string]object.Object, len(r.URL.Query()))
+	for key, values := range r.URL.Query() {
+		if len(values) == 1 {
+			queryPairs[key] = &object.String{Value: values[0]}
+			continue
+		}
+		items := make([]object.Object, 0, len(values))
+		for _, value := range values {
+			items = append(items, &object.String{Value: value})
+		}
+		queryPairs[key] = &object.Array{Elements: items}
+	}
+
+	return hashObject(map[string]object.Object{
+		"method":    &object.String{Value: strings.ToUpper(r.Method)},
+		"path":      &object.String{Value: r.URL.Path},
+		"raw_query": &object.String{Value: r.URL.RawQuery},
+		"query":     hashObject(queryPairs),
+		"body":      &object.String{Value: body},
+		"headers":   hashObject(headerPairs),
+		"host":      &object.String{Value: r.Host},
+	}), nil
+}
+
+func responseRouteFromObject(result object.Object) (nativeHTTPRoute, *object.Error) {
+	switch value := result.(type) {
+	case *object.Null:
+		return nativeHTTPRoute{
+			statusCode: 200,
+			body:       "",
+			headers:    nethttp.Header{"Content-Type": []string{"text/plain; charset=utf-8"}},
+		}, nil
+	case *object.String:
+		return nativeHTTPRoute{
+			statusCode: 200,
+			body:       value.Value,
+			headers:    nethttp.Header{"Content-Type": []string{"text/plain; charset=utf-8"}},
+		}, nil
+	case *object.Hash:
+		if looksLikeHTTPResponseHash(value) {
+			route, errObj := parseRouteResponse(value)
+			if errObj != nil {
+				return nativeHTTPRoute{}, errObj
+			}
+			if route.headers == nil {
+				route.headers = make(nethttp.Header)
+			}
+			if route.filePath == "" && route.headers.Get("Content-Type") == "" {
+				route.headers.Set("Content-Type", "text/plain; charset=utf-8")
+			}
+			return route, nil
+		}
+	}
+
+	payload, err := json.Marshal(nativeValue(result))
+	if err != nil {
+		return nativeHTTPRoute{}, object.NewError(0, "could not encode handler response: %s", err.Error())
+	}
+
+	return nativeHTTPRoute{
+		statusCode: 200,
+		body:       string(payload),
+		headers:    nethttp.Header{"Content-Type": []string{"application/json"}},
+	}, nil
+}
+
+func looksLikeHTTPResponseHash(hash *object.Hash) bool {
+	for _, key := range []string{"status_code", "body", "headers", "file_path", "method"} {
+		if _, ok := hash.Pairs[key]; ok {
+			return true
+		}
+	}
+	return false
 }

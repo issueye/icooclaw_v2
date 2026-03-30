@@ -407,14 +407,7 @@ func evalCallExpr(node *ast.CallExpr, env *object.Environment) object.Object {
 		return args[0]
 	}
 
-	switch fn := fn.(type) {
-	case *object.Function:
-		return callFunction(fn, args, node.Token.Line)
-	case *object.Builtin:
-		return fn.Fn(env, args...)
-	default:
-		return object.NewError(node.Token.Line, "not a function: %s", fn.Type())
-	}
+	return callRuntimeObject(env, fn, args, node.Token.Line)
 }
 
 func callFunction(fn *object.Function, args []object.Object, line int) object.Object {

@@ -151,6 +151,12 @@ func (p *Parser) skipNewlines() {
 	}
 }
 
+func (p *Parser) skipPeekNewlines() {
+	for p.peekToken.Type == lexer.NEWLINE || p.peekToken.Type == lexer.SEMICOLON {
+		p.nextToken()
+	}
+}
+
 func (p *Parser) finishStatement() {
 	if p.peekTokenIs(lexer.NEWLINE) || p.peekTokenIs(lexer.SEMICOLON) ||
 		p.peekTokenIs(lexer.RBRACE) || p.peekTokenIs(lexer.EOF) {

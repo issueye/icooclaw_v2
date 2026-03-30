@@ -142,6 +142,7 @@ func (p *Parser) parseCallExpr(function ast.Expr) ast.Expr {
 func (p *Parser) parseArgs() []ast.Expr {
 	var args []ast.Expr
 	p.nextToken()
+	p.skipNewlines()
 
 	if p.curTokenIs(lexer.RPAREN) {
 		return args
@@ -149,9 +150,21 @@ func (p *Parser) parseArgs() []ast.Expr {
 
 	args = append(args, p.parseExpr(LOWEST))
 
-	for p.peekTokenIs(lexer.COMMA) {
+	for {
+		p.skipPeekNewlines()
+		if p.peekTokenIs(lexer.RPAREN) {
+			p.nextToken()
+			return args
+		}
+		if !p.peekTokenIs(lexer.COMMA) {
+			break
+		}
 		p.nextToken()
 		p.nextToken()
+		p.skipNewlines()
+		if p.curTokenIs(lexer.RPAREN) {
+			return args
+		}
 		args = append(args, p.parseExpr(LOWEST))
 	}
 
@@ -181,6 +194,7 @@ func (p *Parser) parseArrayLiteral() ast.Expr {
 func (p *Parser) parseExprList(end lexer.TokenType) []ast.Expr {
 	var list []ast.Expr
 	p.nextToken()
+	p.skipNewlines()
 
 	if p.curTokenIs(end) {
 		return list
@@ -188,9 +202,21 @@ func (p *Parser) parseExprList(end lexer.TokenType) []ast.Expr {
 
 	list = append(list, p.parseExpr(LOWEST))
 
-	for p.peekTokenIs(lexer.COMMA) {
+	for {
+		p.skipPeekNewlines()
+		if p.peekTokenIs(end) {
+			p.nextToken()
+			return list
+		}
+		if !p.peekTokenIs(lexer.COMMA) {
+			break
+		}
 		p.nextToken()
 		p.nextToken()
+		p.skipNewlines()
+		if p.curTokenIs(end) {
+			return list
+		}
 		list = append(list, p.parseExpr(LOWEST))
 	}
 
@@ -205,6 +231,7 @@ func (p *Parser) parseHashLiteral() ast.Expr {
 	hash := &ast.HashLiteral{Token: p.curToken}
 	hash.Pairs = make(map[ast.Expr]ast.Expr)
 	p.nextToken()
+	p.skipNewlines()
 
 	for !p.curTokenIs(lexer.RBRACE) {
 		key := p.parseExpr(LOWEST)
@@ -215,10 +242,16 @@ func (p *Parser) parseHashLiteral() ast.Expr {
 		value := p.parseExpr(LOWEST)
 		hash.Pairs[key] = value
 
+		p.skipPeekNewlines()
+		if p.peekTokenIs(lexer.RBRACE) {
+			p.nextToken()
+			break
+		}
 		if !p.peekTokenIs(lexer.RBRACE) && !p.expectPeek(lexer.COMMA) {
 			return hash
 		}
 		p.nextToken()
+		p.skipNewlines()
 	}
 
 	return hash
