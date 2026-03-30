@@ -80,11 +80,18 @@ func (p *Parser) ParseProgram() *ast.Program {
 			p.nextToken()
 			continue
 		}
+		curTok := p.curToken
 		stmt := p.parseStatement()
 		if stmt != nil {
 			program.Statements = append(program.Statements, stmt)
 		}
+		if p.curToken.Type != lexer.EOF && (p.curToken.Type == lexer.RPAREN || p.curToken.Type == lexer.RBRACKET || p.curToken.Type == lexer.RBRACE) {
+			p.nextToken()
+		}
 		p.skipNewlines()
+		if p.curToken == curTok {
+			p.nextToken()
+		}
 	}
 
 	return program
@@ -115,8 +122,8 @@ func (p *Parser) expectPeek(t lexer.TokenType) bool {
 }
 
 func (p *Parser) peekError(t lexer.TokenType) {
-	msg := fmt.Sprintf("line %d: expected next token to be %s, got %s instead",
-		p.curToken.Line, t, p.peekToken.Type)
+	msg := fmt.Sprintf("line %d: expected next token to be %s, got %s instead (peek=%s)",
+		p.curToken.Line, t, p.peekToken.Type, p.peekToken.Literal)
 	p.errors = append(p.errors, msg)
 }
 
@@ -168,6 +175,10 @@ func (p *Parser) parseStatement() ast.Stmt {
 		return p.parseExportStmt()
 	case lexer.GO:
 		return p.parseGoStmt()
+	case lexer.RBRACE, lexer.RBRACKET:
+		return nil
+	case lexer.RPAREN:
+		return nil
 	default:
 		return p.parseExpressionStmt()
 	}
@@ -299,7 +310,6 @@ func (p *Parser) parseWhileStmt() *ast.WhileStmt {
 func (p *Parser) parseBlockStmt() *ast.BlockStmt {
 	block := &ast.BlockStmt{Token: p.curToken}
 	p.nextToken()
-	p.skipNewlines()
 
 	for !p.curTokenIs(lexer.RBRACE) && !p.curTokenIs(lexer.EOF) {
 		if p.curTokenIs(lexer.NEWLINE) || p.curTokenIs(lexer.SEMICOLON) {
@@ -310,7 +320,9 @@ func (p *Parser) parseBlockStmt() *ast.BlockStmt {
 		if stmt != nil {
 			block.Statements = append(block.Statements, stmt)
 		}
-		p.skipNewlines()
+		if p.curTokenIs(lexer.RBRACE) {
+			break
+		}
 	}
 
 	if p.curTokenIs(lexer.RBRACE) {

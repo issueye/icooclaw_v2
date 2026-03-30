@@ -31,8 +31,31 @@ func (e *Environment) Set(name string, val Object) Object {
 	if e.consts[name] {
 		return NewError(0, "cannot reassign to constant '%s'", name)
 	}
+	if _, ok := e.store[name]; ok {
+		e.store[name] = val
+		return val
+	}
+	if e.outer != nil {
+		if outerEnv := e.findVar(name); outerEnv != nil {
+			if outerEnv.consts[name] {
+				return NewError(0, "cannot reassign to constant '%s'", name)
+			}
+			outerEnv.store[name] = val
+			return val
+		}
+	}
 	e.store[name] = val
 	return val
+}
+
+func (e *Environment) findVar(name string) *Environment {
+	if _, ok := e.store[name]; ok {
+		return e
+	}
+	if e.outer != nil {
+		return e.outer.findVar(name)
+	}
+	return nil
 }
 
 func (e *Environment) SetConst(name string, val Object) Object {
