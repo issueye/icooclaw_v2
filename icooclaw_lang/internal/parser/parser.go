@@ -80,6 +80,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 			p.nextToken()
 			continue
 		}
+		prevErrorCount := len(p.errors)
 		stmt := p.parseStatement()
 		if stmt != nil {
 			program.Statements = append(program.Statements, stmt)
@@ -88,6 +89,9 @@ func (p *Parser) ParseProgram() *ast.Program {
 			p.nextToken()
 		}
 		p.skipNewlines()
+		if len(p.errors) > prevErrorCount && stmt == nil {
+			p.synchronize()
+		}
 	}
 
 	return program
@@ -104,6 +108,24 @@ func (p *Parser) nextToken() {
 
 func (p *Parser) skipNewlines() {
 	for p.curToken.Type == lexer.NEWLINE || p.curToken.Type == lexer.SEMICOLON {
+		p.nextToken()
+	}
+}
+
+func (p *Parser) synchronize() {
+	for p.curToken.Type != lexer.EOF {
+		if p.curToken.Type == lexer.NEWLINE || p.curToken.Type == lexer.SEMICOLON {
+			p.nextToken()
+			return
+		}
+		if p.curToken.Type == lexer.RBRACE {
+			return
+		}
+		switch p.curToken.Type {
+		case lexer.FN, lexer.IF, lexer.FOR, lexer.WHILE, lexer.MATCH,
+			lexer.RETURN, lexer.CONST, lexer.TRY, lexer.IMPORT, lexer.EXPORT, lexer.GO:
+			return
+		}
 		p.nextToken()
 	}
 }
@@ -175,6 +197,8 @@ func (p *Parser) parseStatement() ast.Stmt {
 		p.nextToken()
 		return nil
 	case lexer.RBRACE, lexer.RBRACKET, lexer.RPAREN:
+		return nil
+	case lexer.EOF:
 		return nil
 	default:
 		return p.parseExpressionStmt()
@@ -358,15 +382,26 @@ func (p *Parser) parseMatchStmt() *ast.MatchStmt {
 	stmt := &ast.MatchStmt{Token: p.curToken}
 	p.nextToken()
 
-	stmt.Subject = p.parseExpr(LOWEST)
-
-	if !p.expectPeek(lexer.LBRACE) {
+	if !p.curTokenIs(lexer.IDENTIFIER) {
+		msg := fmt.Sprintf("line %d: expected identifier after 'match', got %s", p.curToken.Line, p.curToken.Type)
+		p.errors = append(p.errors, msg)
 		return nil
 	}
+	stmt.Subject = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	p.nextToken()
+
+	if !p.curTokenIs(lexer.LBRACE) {
+		msg := fmt.Sprintf("line %d: expected '{' after match subject, got %s", p.curToken.Line, p.curToken.Type)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+	p.nextToken()
 	p.skipNewlines()
 
 	for !p.curTokenIs(lexer.RBRACE) && !p.curTokenIs(lexer.EOF) {
+		fmt.Printf("MS LOOP: cur=%s(%q) peek=%s(%q)\n", p.curToken.Type, p.curToken.Literal, p.peekToken.Type, p.peekToken.Literal)
 		mc := p.parseMatchCase()
+		fmt.Printf("MS after case: cur=%s(%q) peek=%s(%q) mc=%v\n", p.curToken.Type, p.curToken.Literal, p.peekToken.Type, p.peekToken.Literal, mc != nil)
 		if mc != nil {
 			stmt.Cases = append(stmt.Cases, *mc)
 		}
@@ -374,10 +409,12 @@ func (p *Parser) parseMatchStmt() *ast.MatchStmt {
 			break
 		}
 		p.skipNewlines()
+		fmt.Printf("MS after skip: cur=%s(%q)\n", p.curToken.Type, p.curToken.Literal)
 		if p.curTokenIs(lexer.RBRACE) || p.curTokenIs(lexer.EOF) {
 			break
 		}
 		if mc == nil {
+			fmt.Println("MS mc nil, calling nextToken")
 			p.nextToken()
 		}
 	}
@@ -390,28 +427,37 @@ func (p *Parser) parseMatchStmt() *ast.MatchStmt {
 }
 
 func (p *Parser) parseMatchCase() *ast.MatchCase {
+	fmt.Printf("MC ENTER: cur=%s(%q) peek=%s(%q)\n", p.curToken.Type, p.curToken.Literal, p.peekToken.Type, p.peekToken.Literal)
 	mc := &ast.MatchCase{Token: p.curToken}
 
-	mc.Patterns = append(mc.Patterns, p.parseExpr(LOWEST))
-	if mc.Patterns[0] == nil {
+	pattern := p.parseExpr(LOWEST)
+	fmt.Printf("MC pattern result: %v cur=%s(%q) peek=%s(%q)\n", pattern, p.curToken.Type, p.curToken.Literal, p.peekToken.Type, p.peekToken.Literal)
+	if pattern == nil {
+		p.nextToken()
 		return nil
 	}
+	mc.Patterns = append(mc.Patterns, pattern)
 
 	for p.peekTokenIs(lexer.PIPE) {
 		p.nextToken()
 		p.nextToken()
 		pattern := p.parseExpr(LOWEST)
 		if pattern == nil {
+			p.nextToken()
 			return nil
 		}
 		mc.Patterns = append(mc.Patterns, pattern)
 	}
 
+	fmt.Printf("MC before ARROW: cur=%s(%q) peek=%s(%q)\n", p.curToken.Type, p.curToken.Literal, p.peekToken.Type, p.peekToken.Literal)
 	if !p.expectPeek(lexer.ARROW) {
 		return nil
 	}
+	p.nextToken()
+	fmt.Printf("MC after ARROW nextToken: cur=%s(%q) peek=%s(%q)\n", p.curToken.Type, p.curToken.Literal, p.peekToken.Type, p.peekToken.Literal)
 
 	mc.Result = p.parseExpr(LOWEST)
+	fmt.Printf("MC result: %v cur=%s(%q)\n", mc.Result, p.curToken.Type, p.curToken.Literal)
 	if mc.Result == nil {
 		return nil
 	}
@@ -492,7 +538,6 @@ func (p *Parser) parseExpressionStmt() *ast.ExpressionStmt {
 	stmt.Expr = p.parseExpr(LOWEST)
 
 	if stmt.Expr == nil {
-		p.nextToken()
 		return nil
 	}
 
@@ -640,6 +685,9 @@ func (p *Parser) parseInfixExpr(left ast.Expr) ast.Expr {
 	precedence := p.curPrecedence()
 	p.nextToken()
 	expr.Right = p.parseExpr(precedence)
+	if expr.Right == nil {
+		return nil
+	}
 	return expr
 }
 
@@ -650,6 +698,9 @@ func (p *Parser) parseAssignExpr(left ast.Expr) ast.Expr {
 	}
 	p.nextToken()
 	expr.Right = p.parseExpr(ASSIGN - 1)
+	if expr.Right == nil {
+		return nil
+	}
 	return expr
 }
 
@@ -661,6 +712,9 @@ func (p *Parser) parseCompoundAssignExpr(left ast.Expr) ast.Expr {
 	}
 	p.nextToken()
 	expr.Right = p.parseExpr(ASSIGN - 1)
+	if expr.Right == nil {
+		return nil
+	}
 	return expr
 }
 
