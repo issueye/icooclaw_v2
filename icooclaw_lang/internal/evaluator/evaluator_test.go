@@ -179,6 +179,37 @@ kind = type(42)
 	}
 }
 
+func TestTypeOfBuiltinMatchesType(t *testing.T) {
+	env, result := evalSource(t, `
+kind = type_of(42)
+same = type(42) == type_of(42)
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	value, ok := env.Get("kind")
+	if !ok {
+		t.Fatal("kind not found in environment")
+	}
+
+	strValue, ok := value.(*object.String)
+	if !ok || strValue.Value != "INTEGER" {
+		t.Fatalf("expected kind=INTEGER, got %s", value.Inspect())
+	}
+
+	sameValue, ok := env.Get("same")
+	if !ok {
+		t.Fatal("same not found in environment")
+	}
+
+	boolValue, ok := sameValue.(*object.Boolean)
+	if !ok || !boolValue.Value {
+		t.Fatalf("expected same=true, got %s", sameValue.Inspect())
+	}
+}
+
 func TestGoStatementDrainsGoroutinesAfterWait(t *testing.T) {
 	baseline := runtime.NumGoroutine()
 

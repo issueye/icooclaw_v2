@@ -79,6 +79,12 @@ func coreBuiltins() map[string]object.Object {
 			}
 			return &object.String{Value: string(args[0].Type())}
 		}),
+		"type_of": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+			}
+			return &object.String{Value: string(args[0].Type())}
+		}),
 		"str": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))

@@ -85,7 +85,7 @@ result = match payload {
 
 ## 3. 核心类型
 
-`type(value)` 当前可能返回的运行时类型：
+`type(value)` 与 `type_of(value)` 当前可能返回的运行时类型：
 
 - `INTEGER`
 - `FLOAT`
@@ -112,6 +112,7 @@ result = match payload {
 | `len` | `len(value)` | 支持 `STRING`、`ARRAY`、`HASH` |
 | `range` | `range(stop)` / `range(start, stop)` | 返回整数数组 |
 | `type` | `type(value)` | 返回运行时类型名 |
+| `type_of` | `type_of(value)` | `type(value)` 的等价别名 |
 | `str` | `str(value)` | 使用运行时 `Inspect()` 字符串化 |
 | `int` | `int(value)` | 支持整数、浮点、字符串、布尔值 |
 | `float` | `float(value)` | 支持浮点、整数、字符串 |

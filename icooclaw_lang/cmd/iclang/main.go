@@ -146,7 +146,7 @@ func printHelp() {
 	fmt.Println("          null, true, false, in")
 	fmt.Println()
 	fmt.Println("Built-in functions:")
-	fmt.Println("  print(...), len(obj), range(n), type(obj),")
+	fmt.Println("  print(...), len(obj), range(n), type(obj), type_of(obj),")
 	fmt.Println("  str(obj), int(obj), float(obj), input(msg),")
 	fmt.Println("  push(arr, val), pop(arr), abs(n),")
 	fmt.Println("  read_file(path), write_file(path, content)")
