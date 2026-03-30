@@ -1,0 +1,9 @@
+m = 7
+if m > 10 {
+    print("fail1")
+} else if m > 5 {
+    print("pass")
+} else {
+    print("fail2")
+}
+print("done")

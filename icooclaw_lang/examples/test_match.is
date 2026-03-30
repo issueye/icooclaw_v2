@@ -1,8 +1,7 @@
-# Test match statement
+# Test match as standalone statement
 x = 2
-result = match x {
-    1 -> "one"
-    2 -> "two"
-    _ -> "other"
+match x {
+    1 -> print("one")
+    2 -> print("two")
+    _ -> print("other")
 }
-print("match result: " + result)

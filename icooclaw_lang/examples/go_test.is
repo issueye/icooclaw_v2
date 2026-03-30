@@ -1,0 +1,10 @@
+# Test go statement
+
+fn worker(name) {
+    print("worker: " + name)
+}
+
+print("main: start")
+go worker("alpha")
+go worker("beta")
+print("main: end")

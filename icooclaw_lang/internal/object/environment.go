@@ -1,65 +1,95 @@
 package object
 
 type Environment struct {
-	store  map[string]Object
-	outer  *Environment
-	consts map[string]bool
+	store   map[string]Object
+	outer   *Environment
+	consts  map[string]bool
+	runtime *Runtime
 }
 
 func NewEnvironment() *Environment {
 	return &Environment{
-		store:  make(map[string]Object),
-		consts: make(map[string]bool),
+		store:   make(map[string]Object),
+		consts:  make(map[string]bool),
+		runtime: NewRuntime(),
 	}
 }
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
 	env := NewEnvironment()
 	env.outer = outer
+	env.runtime = outer.runtime
 	return env
 }
 
 func (e *Environment) Get(name string) (Object, bool) {
-	obj, ok := e.store[name]
-	if !ok && e.outer != nil {
-		obj, ok = e.outer.Get(name)
-	}
-	return obj, ok
+	e.runtime.mu.RLock()
+	defer e.runtime.mu.RUnlock()
+
+	return e.getUnlocked(name)
 }
 
 func (e *Environment) Set(name string, val Object) Object {
-	if e.consts[name] {
-		return NewError(0, "cannot reassign to constant '%s'", name)
-	}
-	if _, ok := e.store[name]; ok {
-		e.store[name] = val
+	e.runtime.mu.Lock()
+	defer e.runtime.mu.Unlock()
+
+	if target := e.findVarUnlocked(name); target != nil {
+		if target.consts[name] {
+			return NewError(0, "cannot reassign to constant '%s'", name)
+		}
+		target.store[name] = val
 		return val
 	}
-	if e.outer != nil {
-		if outerEnv := e.findVar(name); outerEnv != nil {
-			if outerEnv.consts[name] {
-				return NewError(0, "cannot reassign to constant '%s'", name)
-			}
-			outerEnv.store[name] = val
-			return val
-		}
+
+	if e.consts[name] {
+		return NewError(0, "cannot reassign to constant '%s'", name)
 	}
 	e.store[name] = val
 	return val
 }
 
 func (e *Environment) findVar(name string) *Environment {
+	e.runtime.mu.RLock()
+	defer e.runtime.mu.RUnlock()
+
+	return e.findVarUnlocked(name)
+}
+
+func (e *Environment) SetConst(name string, val Object) Object {
+	e.runtime.mu.Lock()
+	defer e.runtime.mu.Unlock()
+
+	e.store[name] = val
+	e.consts[name] = true
+	return val
+}
+
+func (e *Environment) Wait() {
+	e.runtime.wg.Wait()
+}
+
+func (e *Environment) Go(fn func()) {
+	e.runtime.wg.Add(1)
+	go func() {
+		defer e.runtime.wg.Done()
+		fn()
+	}()
+}
+
+func (e *Environment) getUnlocked(name string) (Object, bool) {
+	obj, ok := e.store[name]
+	if !ok && e.outer != nil {
+		return e.outer.getUnlocked(name)
+	}
+	return obj, ok
+}
+
+func (e *Environment) findVarUnlocked(name string) *Environment {
 	if _, ok := e.store[name]; ok {
 		return e
 	}
 	if e.outer != nil {
-		return e.outer.findVar(name)
+		return e.outer.findVarUnlocked(name)
 	}
 	return nil
-}
-
-func (e *Environment) SetConst(name string, val Object) Object {
-	e.store[name] = val
-	e.consts[name] = true
-	return val
 }

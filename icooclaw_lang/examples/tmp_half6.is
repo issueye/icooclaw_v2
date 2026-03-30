@@ -1,0 +1,90 @@
+# Test 1: Variables and basic expressions
+x = 10
+y = 3.14
+name = "icooclaw"
+flag = true
+print("Test 1: Basic variables - PASS")
+
+# Test 2: Arithmetic operations
+a = 10 + 5
+b = 10 - 3
+c = 10 * 2
+d = 10 / 2
+e = 10 % 3
+print("Test 2: Arithmetic - PASS")
+
+# Test 3: Comparison operators
+if 5 > 3 { print("Test 3a: > - PASS") }
+if 3 < 5 { print("Test 3b: < - PASS") }
+if 5 >= 5 { print("Test 3c: >= - PASS") }
+if 5 <= 5 { print("Test 3d: <= - PASS") }
+if 5 == 5 { print("Test 3e: == - PASS") }
+if 5 != 3 { print("Test 3f: != - PASS") }
+
+# Test 4: Logical operators
+if true && true { print("Test 4a: && - PASS") }
+if true || false { print("Test 4b: || - PASS") }
+if !false { print("Test 4c: ! - PASS") }
+
+# Test 5: If-else
+n = 15
+if n > 10 {
+    print("Test 5a: if - PASS")
+} else {
+    print("Test 5a: FAILED")
+}
+
+# Test 6: Else-if chains
+m = 7
+if m > 10 {
+    print("Test 6: FAILED")
+} else if m > 5 {
+    print("Test 6: else-if chain - PASS")
+} else {
+    print("Test 6: FAILED")
+}
+
+# Test 7: While loop
+count = 0
+while count < 3 {
+    count = count + 1
+}
+if count == 3 {
+    print("Test 7: While loop - PASS")
+}
+
+# Test 8: For loop with range
+sum = 0
+for i in range(5) {
+    sum = sum + i
+}
+if sum == 10 {
+    print("Test 8: For loop with range - PASS")
+}
+
+# Test 9: Arrays
+arr = [1, 2, 3, 4, 5]
+if len(arr) == 5 {
+    print("Test 9a: Array creation - PASS")
+}
+if arr[0] == 1 {
+    print("Test 9b: Array index - PASS")
+}
+
+# Test 10: Hash/Dict
+person = {"name": "Alice", "age": 30}
+if person["name"] == "Alice" {
+    print("Test 10: Hash/Dict - PASS")
+}
+
+# Test 11: Functions
+fn add(a, b) {
+    return a + b
+}
+if add(2, 3) == 5 {
+    print("Test 11: Functions - PASS")
+}
+
+# Test 12: Built-in functions
+print("Test 12a: print - PASS")
+if len("hello") == 5 {

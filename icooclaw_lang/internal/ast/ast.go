@@ -199,6 +199,7 @@ type MatchCase struct {
 }
 
 func (ms *MatchStmt) statementNode()       {}
+func (ms *MatchStmt) expressionNode()      {}
 func (ms *MatchStmt) TokenLiteral() string { return ms.Token.Literal }
 func (ms *MatchStmt) String() string {
 	out := "match " + ms.Subject.String() + " {\n"

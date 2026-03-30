@@ -1,0 +1,60 @@
+# Test 1: Variables and basic expressions
+x = 10
+y = 3.14
+name = "icooclaw"
+flag = true
+print("Test 1: Basic variables - PASS")
+
+# Test 2: Arithmetic operations
+a = 10 + 5
+b = 10 - 3
+c = 10 * 2
+d = 10 / 2
+e = 10 % 3
+print("Test 2: Arithmetic - PASS")
+
+# Test 3: Comparison operators
+if 5 > 3 { print("Test 3a: > - PASS") }
+if 3 < 5 { print("Test 3b: < - PASS") }
+if 5 >= 5 { print("Test 3c: >= - PASS") }
+if 5 <= 5 { print("Test 3d: <= - PASS") }
+if 5 == 5 { print("Test 3e: == - PASS") }
+if 5 != 3 { print("Test 3f: != - PASS") }
+
+# Test 4: Logical operators
+if true && true { print("Test 4a: && - PASS") }
+if true || false { print("Test 4b: || - PASS") }
+if !false { print("Test 4c: ! - PASS") }
+
+# Test 5: If-else
+n = 15
+if n > 10 {
+    print("Test 5a: if - PASS")
+} else {
+    print("Test 5a: FAILED")
+}
+
+# Test 6: Else-if chains
+m = 7
+if m > 10 {
+    print("Test 6: FAILED")
+} else if m > 5 {
+    print("Test 6: else-if chain - PASS")
+} else {
+    print("Test 6: FAILED")
+}
+
+# Test 7: While loop
+count = 0
+while count < 3 {
+    count = count + 1
+}
+if count == 3 {
+    print("Test 7: While loop - PASS")
+}
+
+# Test 8: For loop with range
+sum = 0
+for i in range(5) {
+    sum = sum + i
+}

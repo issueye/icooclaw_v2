@@ -1,0 +1,14 @@
+const PI = 3.14159
+if PI == 3.14159 {
+    print("const ok")
+}
+found = false
+for i in range(10) {
+    if i == 5 {
+        found = true
+        break
+    }
+}
+if found {
+    print("break ok")
+}

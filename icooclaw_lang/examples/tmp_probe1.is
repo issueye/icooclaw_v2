@@ -1,0 +1,5 @@
+x = 10
+if 5 > 3 { print("a") }
+if 3 < 5 { print("b") }
+if true && true { print("c") }
+print("done")
