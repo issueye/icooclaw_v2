@@ -357,7 +357,7 @@ func newSSEStreamObject(state *nativeSSEStream) *object.Hash {
 			if errObj != nil {
 				return errObj
 			}
-			return state.send("", data)
+			return state.send(nativeSSEEvent{data: data})
 		}),
 		"send_event": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
 			if len(args) != 2 {
@@ -371,7 +371,49 @@ func newSSEStreamObject(state *nativeSSEStream) *object.Hash {
 			if errObj != nil {
 				return errObj
 			}
-			return state.send(eventName, data)
+			return state.send(nativeSSEEvent{event: eventName, data: data})
+		}),
+		"send_with_id": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=2", len(args))
+			}
+			data, errObj := stringArg(args[0], "first argument to `send_with_id` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+			id, errObj := stringArg(args[1], "second argument to `send_with_id` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+			return state.send(nativeSSEEvent{data: data, id: id})
+		}),
+		"send_event_with_id": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 3 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=3", len(args))
+			}
+			eventName, errObj := stringArg(args[0], "first argument to `send_event_with_id` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+			data, errObj := stringArg(args[1], "second argument to `send_event_with_id` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+			id, errObj := stringArg(args[2], "third argument to `send_event_with_id` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+			return state.send(nativeSSEEvent{event: eventName, data: data, id: id})
+		}),
+		"set_retry": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+			}
+			retryMs, errObj := integerArg(args[0], "first argument to `set_retry` must be INTEGER, got %s")
+			if errObj != nil {
+				return errObj
+			}
+			return state.send(nativeSSEEvent{retry: retryMs})
 		}),
 		"send_json": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
 			if len(args) != 1 {
@@ -381,7 +423,7 @@ func newSSEStreamObject(state *nativeSSEStream) *object.Hash {
 			if err != nil {
 				return object.NewError(0, "could not encode sse json: %s", err.Error())
 			}
-			return state.send("json", string(payload))
+			return state.send(nativeSSEEvent{event: "json", data: string(payload)})
 		}),
 		"close": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
 			if len(args) != 0 {
@@ -484,7 +526,14 @@ func (c *nativeSSEClient) isClosed() bool {
 	return c.closed
 }
 
-func (s *nativeSSEStream) send(eventName, data string) object.Object {
+type nativeSSEEvent struct {
+	event string
+	data  string
+	id    string
+	retry int64
+}
+
+func (s *nativeSSEStream) send(event nativeSSEEvent) object.Object {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed || s.writer == nil {
@@ -498,15 +547,27 @@ func (s *nativeSSEStream) send(eventName, data string) object.Object {
 	}
 
 	var builder strings.Builder
-	if eventName != "" {
+	if event.event != "" {
 		builder.WriteString("event: ")
-		builder.WriteString(eventName)
+		builder.WriteString(event.event)
 		builder.WriteString("\n")
 	}
-	for _, line := range strings.Split(data, "\n") {
-		builder.WriteString("data: ")
-		builder.WriteString(line)
+	if event.id != "" {
+		builder.WriteString("id: ")
+		builder.WriteString(event.id)
 		builder.WriteString("\n")
+	}
+	if event.retry > 0 {
+		builder.WriteString("retry: ")
+		builder.WriteString(fmt.Sprintf("%d", event.retry))
+		builder.WriteString("\n")
+	}
+	if event.data != "" {
+		for _, line := range strings.Split(event.data, "\n") {
+			builder.WriteString("data: ")
+			builder.WriteString(line)
+			builder.WriteString("\n")
+		}
 	}
 	builder.WriteString("\n")
 
@@ -545,7 +606,7 @@ func writeSSEHandlerResult(stream *nativeSSEStream, result object.Object) *objec
 	case nil, *object.Null:
 		return nil
 	case *object.String:
-		if errObj, ok := stream.send("", value.Value).(*object.Error); ok {
+		if errObj, ok := stream.send(nativeSSEEvent{data: value.Value}).(*object.Error); ok {
 			return errObj
 		}
 		return nil
@@ -554,7 +615,7 @@ func writeSSEHandlerResult(stream *nativeSSEStream, result object.Object) *objec
 		if err != nil {
 			return object.NewError(0, "could not encode sse handler result: %s", err.Error())
 		}
-		if errObj, ok := stream.send("json", string(payload)).(*object.Error); ok {
+		if errObj, ok := stream.send(nativeSSEEvent{event: "json", data: string(payload)}).(*object.Error); ok {
 			return errObj
 		}
 		return nil

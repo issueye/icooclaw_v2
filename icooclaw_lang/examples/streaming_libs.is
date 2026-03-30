@@ -13,7 +13,31 @@ print(ws_client.read())
 ws_client.close()
 ws_server.stop()
 
+fn ws_join(req, socket) {
+    socket.read()
+    time.sleep_ms(50)
+}
+
+ws_room_server = websocket.server.new()
+ws_room_server.handle("/room", ws_join)
+ws_room_server.start("127.0.0.1:0")
+
+ws_client_a = websocket.client.connect(ws_room_server.url("/room"))
+ws_client_b = websocket.client.connect(ws_room_server.url("/room"))
+ws_client_a.send("ready-a")
+ws_client_b.send("ready-b")
+time.sleep_ms(10)
+ws_room_server.broadcast("/room", "broadcast")
+print(ws_client_a.read())
+print(ws_client_b.read())
+ws_client_a.close()
+ws_client_b.close()
+ws_room_server.stop()
+
 fn sse_events(req, stream) {
+    stream.set_retry(1500)
+    stream.send_with_id("hello", "evt-1")
+    stream.send_event_with_id("update", "world", "evt-2")
     stream.send("hello")
     stream.send_event("update", "world")
     stream.send_json({"ok": true})
@@ -24,6 +48,9 @@ sse_server.handle("/events", sse_events)
 sse_server.start("127.0.0.1:0")
 
 sse_client = sse.client.connect(sse_server.url("/events"))
+print(sse_client.read().retry)
+print(sse_client.read().id)
+print(sse_client.read().event)
 print(sse_client.read().data)
 print(sse_client.read().event)
 print(sse_client.read().event)

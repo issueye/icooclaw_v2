@@ -19,6 +19,7 @@ type nativeWebSocketConn struct {
 	mu     sync.Mutex
 	conn   *gws.Conn
 	closed bool
+	path   string
 }
 
 type nativeWebSocketHandler struct {
@@ -115,6 +116,44 @@ func newWebSocketServerObject() *object.Hash {
 			state.mu.Unlock()
 			return &object.Null{}
 		}),
+		"broadcast": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=2", len(args))
+			}
+			path, errObj := stringArg(args[0], "first argument to `broadcast` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+			text, errObj := stringArg(args[1], "second argument to `broadcast` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+			return state.broadcast(path, []byte(text))
+		}),
+		"broadcast_json": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=2", len(args))
+			}
+			path, errObj := stringArg(args[0], "first argument to `broadcast_json` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+			payload, err := json.Marshal(nativeValue(args[1]))
+			if err != nil {
+				return object.NewError(0, "could not encode websocket json: %s", err.Error())
+			}
+			return state.broadcast(path, payload)
+		}),
+		"active_count": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+			}
+			path, errObj := stringArg(args[0], "first argument to `active_count` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+			return &object.Integer{Value: state.activeCount(path)}
+		}),
 		"start": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
@@ -153,7 +192,7 @@ func newWebSocketServerObject() *object.Hash {
 						return
 					}
 
-					connState := &nativeWebSocketConn{conn: conn}
+					connState := &nativeWebSocketConn{conn: conn, path: r.URL.Path}
 					state.mu.Lock()
 					state.connectionCount++
 					state.active[connState] = struct{}{}
@@ -431,6 +470,36 @@ func writeWebSocketHandlerResult(conn *nativeWebSocketConn, result object.Object
 		}
 		return nil
 	}
+}
+
+func (s *nativeWebSocketServer) broadcast(path string, payload []byte) object.Object {
+	s.mu.Lock()
+	targets := make([]*nativeWebSocketConn, 0)
+	for conn := range s.active {
+		if conn.path == path && !conn.isClosed() {
+			targets = append(targets, conn)
+		}
+	}
+	s.mu.Unlock()
+
+	for _, conn := range targets {
+		if errObj, ok := conn.writeMessage(gws.TextMessage, payload).(*object.Error); ok {
+			return errObj
+		}
+	}
+	return &object.Null{}
+}
+
+func (s *nativeWebSocketServer) activeCount(path string) int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	count := int64(0)
+	for conn := range s.active {
+		if conn.path == path && !conn.isClosed() {
+			count++
+		}
+	}
+	return count
 }
 
 func websocketMessageTypeName(messageType int) string {

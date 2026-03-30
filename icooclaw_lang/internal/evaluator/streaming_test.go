@@ -83,6 +83,56 @@ server.stop()
 	}
 }
 
+func TestWebSocketBroadcastByPath(t *testing.T) {
+	env, result := evalSource(t, `
+fn join(req, socket) {
+    message = socket.read()
+    time.sleep_ms(50)
+}
+
+server = websocket.server.new()
+server.handle("/room", join)
+addr = server.start("127.0.0.1:0")
+client_a = websocket.client.connect(server.url("/room"))
+client_b = websocket.client.connect(server.url("/room"))
+client_a.send("ready-a")
+client_b.send("ready-b")
+time.sleep_ms(10)
+broadcast_active = server.active_count("/room")
+server.broadcast("/room", "hello-room")
+msg_a = client_a.read()
+msg_b = client_b.read()
+server.broadcast_json("/room", {"kind": "notice", "ok": true})
+json_a = json.parse(client_a.read())
+json_b = json.parse(client_b.read())
+client_a.close()
+client_b.close()
+server.stop()
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	if got := testStringValue(t, env, "broadcast_active"); got != "2" {
+		t.Fatalf("expected broadcast_active=2, got %s", got)
+	}
+	if got := testStringValue(t, env, "msg_a"); got != "hello-room" {
+		t.Fatalf("expected msg_a=hello-room, got %s", got)
+	}
+	if got := testStringValue(t, env, "msg_b"); got != "hello-room" {
+		t.Fatalf("expected msg_b=hello-room, got %s", got)
+	}
+	jsonA := testHashValue(t, env, "json_a")
+	if jsonA.Pairs["kind"].Value.Inspect() != "notice" || jsonA.Pairs["ok"].Value.Inspect() != "true" {
+		t.Fatalf("unexpected json_a payload: %s", jsonA.Inspect())
+	}
+	jsonB := testHashValue(t, env, "json_b")
+	if jsonB.Pairs["kind"].Value.Inspect() != "notice" || jsonB.Pairs["ok"].Value.Inspect() != "true" {
+		t.Fatalf("unexpected json_b payload: %s", jsonB.Inspect())
+	}
+}
+
 func TestSSEServerAndClient(t *testing.T) {
 	env, result := evalSource(t, `
 fn events(req, stream) {
@@ -146,6 +196,45 @@ after_running = server.is_running()
 	}
 	if got := testStringValue(t, env, "after_running"); got != "false" {
 		t.Fatalf("expected after_running=false, got %s", got)
+	}
+}
+
+func TestSSEEventIDAndRetry(t *testing.T) {
+	env, result := evalSource(t, `
+fn events(req, stream) {
+    stream.set_retry(1500)
+    stream.send_with_id("hello", "evt-1")
+    stream.send_event_with_id("update", "world", "evt-2")
+}
+
+server = sse.server.new()
+server.handle("/events", events)
+addr = server.start("127.0.0.1:0")
+client = sse.client.connect(server.url("/events"))
+retry_event = client.read()
+first = client.read()
+second = client.read()
+client.close()
+server.stop()
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	retryEvent := testHashValue(t, env, "retry_event")
+	if retryEvent.Pairs["retry"].Value.Inspect() != "1500" {
+		t.Fatalf("expected retry=1500, got %s", retryEvent.Pairs["retry"].Value.Inspect())
+	}
+
+	first := testHashValue(t, env, "first")
+	if first.Pairs["id"].Value.Inspect() != "evt-1" || first.Pairs["data"].Value.Inspect() != "hello" {
+		t.Fatalf("unexpected first event: %s", first.Inspect())
+	}
+
+	second := testHashValue(t, env, "second")
+	if second.Pairs["event"].Value.Inspect() != "update" || second.Pairs["id"].Value.Inspect() != "evt-2" || second.Pairs["data"].Value.Inspect() != "world" {
+		t.Fatalf("unexpected second event: %s", second.Inspect())
 	}
 }
 
