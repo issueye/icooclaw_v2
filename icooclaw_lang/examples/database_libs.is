@@ -2,11 +2,15 @@ fs.remove("demo.db")
 
 conn = db.sqlite.open("demo.db")
 conn.exec("create table users (id integer primary key autoincrement, name text, age integer)")
-conn.exec("insert into users (name, age) values (?, ?)", ["alice", 20])
-conn.exec("insert into users (name, age) values (?, ?)", ["bob", 30])
+insert_stmt = conn.prepare("insert into users (name, age) values (?, ?)")
+insert_stmt.exec(["alice", 20])
+insert_stmt.exec(["bob", 30])
+insert_stmt.close()
 
 tx = conn.begin()
-tx.exec("insert into users (name, age) values (?, ?)", ["carol", 40])
+tx_stmt = tx.prepare("insert into users (name, age) values (?, ?)")
+tx_stmt.exec(["carol", 40])
+tx_stmt.close()
 tx.commit()
 
 tx2 = conn.begin()

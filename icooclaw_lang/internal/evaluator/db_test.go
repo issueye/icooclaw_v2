@@ -111,6 +111,62 @@ conn.close()
 	}
 }
 
+func TestSQLitePreparedStatements(t *testing.T) {
+	dbPath := filepath.ToSlash(filepath.Join(t.TempDir(), "stmt.db"))
+
+	env, result := evalSource(t, fmt.Sprintf(`
+conn = db.sqlite.open("%s")
+conn.exec("create table users (id integer primary key autoincrement, name text, age integer)")
+
+insert_stmt = conn.prepare("insert into users (name, age) values (?, ?)")
+insert_stmt_sql = insert_stmt.sql()
+insert_stmt.exec(["alice", 20])
+insert_stmt.exec(["bob", 30])
+insert_stmt.close()
+insert_stmt_closed = insert_stmt.is_closed()
+
+select_stmt = conn.prepare("select name, age from users where age >= ? order by age")
+rows = select_stmt.query([20])
+row = select_stmt.query_one([30])
+
+tx = conn.begin()
+tx_stmt = tx.prepare("insert into users (name, age) values (?, ?)")
+tx_stmt.exec(["carol", 40])
+tx_stmt.close()
+tx.commit()
+
+final_rows = conn.query("select name from users order by id")
+select_stmt.close()
+conn.close()
+`, dbPath))
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	if got := testStringValue(t, env, "insert_stmt_sql"); got != "insert into users (name, age) values (?, ?)" {
+		t.Fatalf("unexpected insert_stmt_sql: %s", got)
+	}
+	if got := testStringValue(t, env, "insert_stmt_closed"); got != "true" {
+		t.Fatalf("expected insert_stmt_closed=true, got %s", got)
+	}
+
+	rows := testArrayValue(t, env, "rows")
+	if len(rows.Elements) != 2 {
+		t.Fatalf("expected 2 selected rows, got %d", len(rows.Elements))
+	}
+
+	row := testHashValue(t, env, "row")
+	if row.Pairs["name"].Value.Inspect() != "bob" || row.Pairs["age"].Value.Inspect() != "30" {
+		t.Fatalf("unexpected prepared query_one row: %s", row.Inspect())
+	}
+
+	finalRows := testArrayValue(t, env, "final_rows")
+	if len(finalRows.Elements) != 3 {
+		t.Fatalf("expected 3 final rows, got %d", len(finalRows.Elements))
+	}
+}
+
 func TestMySQLAndPGDatabaseDriversOpenAndClose(t *testing.T) {
 	env, result := evalSource(t, `
 mysql_conn = db.mysql.open("user:pass@tcp(127.0.0.1:1)/demo")

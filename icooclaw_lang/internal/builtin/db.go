@@ -26,9 +26,20 @@ type nativeDBTx struct {
 	closed bool
 }
 
+type nativeDBStmt struct {
+	driver string
+	query  string
+	stmt   *sql.Stmt
+	closed bool
+}
+
 type dbQueryExecutor interface {
 	Exec(query string, args ...any) (sql.Result, error)
 	Query(query string, args ...any) (*sql.Rows, error)
+}
+
+type dbPreparer interface {
+	Prepare(query string) (*sql.Stmt, error)
 }
 
 func newDBLib() *object.Hash {
@@ -91,6 +102,19 @@ func newDBConnObject(conn *nativeDBConn) *object.Hash {
 				driver: conn.driver,
 				tx:     tx,
 			})
+		}),
+		"prepare": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+			}
+			if conn.db == nil {
+				return object.NewError(0, "database connection is closed")
+			}
+			query, errObj := stringArg(args[0], "first argument to `prepare` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+			return dbPrepareObject(conn.db, conn.driver, query)
 		}),
 		"exec": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
 			if conn.db == nil {
@@ -166,6 +190,19 @@ func newDBTxObject(tx *nativeDBTx) *object.Hash {
 			}
 			return dbExecObject(tx.tx, "exec", args)
 		}),
+		"prepare": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+			}
+			if tx.closed || tx.tx == nil {
+				return object.NewError(0, "transaction is closed")
+			}
+			query, errObj := stringArg(args[0], "first argument to `prepare` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+			return dbPrepareObject(tx.tx, tx.driver, query)
+		}),
 		"query": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
 			if tx.closed || tx.tx == nil {
 				return object.NewError(0, "transaction is closed")
@@ -215,6 +252,75 @@ func newDBTxObject(tx *nativeDBTx) *object.Hash {
 	})
 }
 
+func newDBStmtObject(stmt *nativeDBStmt) *object.Hash {
+	return hashObject(map[string]object.Object{
+		"driver": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 0 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
+			}
+			return &object.String{Value: stmt.driver}
+		}),
+		"sql": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 0 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
+			}
+			return &object.String{Value: stmt.query}
+		}),
+		"exec": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if stmt.closed || stmt.stmt == nil {
+				return object.NewError(0, "statement is closed")
+			}
+			params, errObj := parseDBParamsArgs("exec", args)
+			if errObj != nil {
+				return errObj
+			}
+			return dbExecPreparedObject(stmt.stmt, params)
+		}),
+		"query": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if stmt.closed || stmt.stmt == nil {
+				return object.NewError(0, "statement is closed")
+			}
+			params, errObj := parseDBParamsArgs("query", args)
+			if errObj != nil {
+				return errObj
+			}
+			return dbQueryPreparedObject(stmt.stmt, params, false)
+		}),
+		"query_one": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if stmt.closed || stmt.stmt == nil {
+				return object.NewError(0, "statement is closed")
+			}
+			params, errObj := parseDBParamsArgs("query_one", args)
+			if errObj != nil {
+				return errObj
+			}
+			return dbQueryPreparedObject(stmt.stmt, params, true)
+		}),
+		"close": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 0 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
+			}
+			if stmt.closed || stmt.stmt == nil {
+				stmt.closed = true
+				stmt.stmt = nil
+				return &object.Null{}
+			}
+			if err := stmt.stmt.Close(); err != nil {
+				return object.NewError(0, "could not close statement: %s", err.Error())
+			}
+			stmt.closed = true
+			stmt.stmt = nil
+			return &object.Null{}
+		}),
+		"is_closed": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 0 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
+			}
+			return boolObject(stmt.closed || stmt.stmt == nil)
+		}),
+	})
+}
+
 func parseDBCallArgs(name string, args []object.Object) (string, []any, *object.Error) {
 	if len(args) != 1 && len(args) != 2 {
 		return "", nil, object.NewError(0, "wrong number of arguments. got=%d, want=1 or 2", len(args))
@@ -244,6 +350,43 @@ func parseDBCallArgs(name string, args []object.Object) (string, []any, *object.
 	return query, params, nil
 }
 
+func parseDBParamsArgs(name string, args []object.Object) ([]any, *object.Error) {
+	if len(args) > 1 {
+		return nil, object.NewError(0, "wrong number of arguments. got=%d, want=0 or 1", len(args))
+	}
+	if len(args) == 0 {
+		return nil, nil
+	}
+	if _, ok := args[0].(*object.Null); ok {
+		return nil, nil
+	}
+	paramArray, ok := args[0].(*object.Array)
+	if !ok {
+		return nil, object.NewError(0, "first argument to `%s` must be ARRAY or NULL, got %s", name, args[0].Type())
+	}
+	params := make([]any, 0, len(paramArray.Elements))
+	for _, item := range paramArray.Elements {
+		value, errObj := dbValueFromObject(item)
+		if errObj != nil {
+			return nil, errObj
+		}
+		params = append(params, value)
+	}
+	return params, nil
+}
+
+func dbPrepareObject(preparer dbPreparer, driver, query string) object.Object {
+	stmt, err := preparer.Prepare(query)
+	if err != nil {
+		return object.NewError(0, "could not prepare statement: %s", err.Error())
+	}
+	return newDBStmtObject(&nativeDBStmt{
+		driver: driver,
+		query:  query,
+		stmt:   stmt,
+	})
+}
+
 func dbExecObject(executor dbQueryExecutor, name string, args []object.Object) object.Object {
 	query, params, errObj := parseDBCallArgs(name, args)
 	if errObj != nil {
@@ -262,12 +405,45 @@ func dbExecObject(executor dbQueryExecutor, name string, args []object.Object) o
 	})
 }
 
+func dbExecPreparedObject(stmt *sql.Stmt, params []any) object.Object {
+	result, err := stmt.Exec(params...)
+	if err != nil {
+		return object.NewError(0, "db exec failed: %s", err.Error())
+	}
+	rowsAffected, _ := result.RowsAffected()
+	lastInsertID, _ := result.LastInsertId()
+	return hashObject(map[string]object.Object{
+		"rows_affected":  &object.Integer{Value: rowsAffected},
+		"last_insert_id": &object.Integer{Value: lastInsertID},
+	})
+}
+
 func dbQueryObject(executor dbQueryExecutor, name string, args []object.Object, one bool) object.Object {
 	query, params, errObj := parseDBCallArgs(name, args)
 	if errObj != nil {
 		return errObj
 	}
 	rows, err := executor.Query(query, params...)
+	if err != nil {
+		return object.NewError(0, "db query failed: %s", err.Error())
+	}
+	defer rows.Close()
+
+	records, errObj := rowsToArray(rows)
+	if errObj != nil {
+		return errObj
+	}
+	if one {
+		if len(records.Elements) == 0 {
+			return &object.Null{}
+		}
+		return records.Elements[0]
+	}
+	return records
+}
+
+func dbQueryPreparedObject(stmt *sql.Stmt, params []any, one bool) object.Object {
+	rows, err := stmt.Query(params...)
 	if err != nil {
 		return object.NewError(0, "db query failed: %s", err.Error())
 	}
