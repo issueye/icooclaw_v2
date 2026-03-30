@@ -20,6 +20,17 @@ type nativeDBConn struct {
 	db     *sql.DB
 }
 
+type nativeDBTx struct {
+	driver string
+	tx     *sql.Tx
+	closed bool
+}
+
+type dbQueryExecutor interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	Query(query string, args ...any) (*sql.Rows, error)
+}
+
 func newDBLib() *object.Hash {
 	return hashObject(map[string]object.Object{
 		"sqlite": newDBDriverLib("sqlite", "sqlite"),
@@ -65,59 +76,39 @@ func newDBConnObject(conn *nativeDBConn) *object.Hash {
 			}
 			return &object.String{Value: conn.driver}
 		}),
-		"exec": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
-			query, params, errObj := parseDBCallArgs("exec", args)
-			if errObj != nil {
-				return errObj
+		"begin": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 0 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
 			}
-
-			result, err := conn.db.Exec(query, params...)
+			if conn.db == nil {
+				return object.NewError(0, "database connection is closed")
+			}
+			tx, err := conn.db.BeginTx(context.Background(), nil)
 			if err != nil {
-				return object.NewError(0, "db exec failed: %s", err.Error())
+				return object.NewError(0, "could not begin transaction: %s", err.Error())
 			}
-			rowsAffected, _ := result.RowsAffected()
-			lastInsertID, _ := result.LastInsertId()
-			return hashObject(map[string]object.Object{
-				"rows_affected":  &object.Integer{Value: rowsAffected},
-				"last_insert_id": &object.Integer{Value: lastInsertID},
+			return newDBTxObject(&nativeDBTx{
+				driver: conn.driver,
+				tx:     tx,
 			})
 		}),
+		"exec": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if conn.db == nil {
+				return object.NewError(0, "database connection is closed")
+			}
+			return dbExecObject(conn.db, "exec", args)
+		}),
 		"query": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
-			query, params, errObj := parseDBCallArgs("query", args)
-			if errObj != nil {
-				return errObj
+			if conn.db == nil {
+				return object.NewError(0, "database connection is closed")
 			}
-			rows, err := conn.db.Query(query, params...)
-			if err != nil {
-				return object.NewError(0, "db query failed: %s", err.Error())
-			}
-			defer rows.Close()
-
-			records, errObj := rowsToArray(rows)
-			if errObj != nil {
-				return errObj
-			}
-			return records
+			return dbQueryObject(conn.db, "query", args, false)
 		}),
 		"query_one": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
-			query, params, errObj := parseDBCallArgs("query_one", args)
-			if errObj != nil {
-				return errObj
+			if conn.db == nil {
+				return object.NewError(0, "database connection is closed")
 			}
-			rows, err := conn.db.Query(query, params...)
-			if err != nil {
-				return object.NewError(0, "db query failed: %s", err.Error())
-			}
-			defer rows.Close()
-
-			records, errObj := rowsToArray(rows)
-			if errObj != nil {
-				return errObj
-			}
-			if len(records.Elements) == 0 {
-				return &object.Null{}
-			}
-			return records.Elements[0]
+			return dbQueryObject(conn.db, "query_one", args, true)
 		}),
 		"ping": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
 			if len(args) != 0 {
@@ -161,6 +152,69 @@ func newDBConnObject(conn *nativeDBConn) *object.Hash {
 	})
 }
 
+func newDBTxObject(tx *nativeDBTx) *object.Hash {
+	return hashObject(map[string]object.Object{
+		"driver": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 0 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
+			}
+			return &object.String{Value: tx.driver}
+		}),
+		"exec": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if tx.closed || tx.tx == nil {
+				return object.NewError(0, "transaction is closed")
+			}
+			return dbExecObject(tx.tx, "exec", args)
+		}),
+		"query": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if tx.closed || tx.tx == nil {
+				return object.NewError(0, "transaction is closed")
+			}
+			return dbQueryObject(tx.tx, "query", args, false)
+		}),
+		"query_one": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if tx.closed || tx.tx == nil {
+				return object.NewError(0, "transaction is closed")
+			}
+			return dbQueryObject(tx.tx, "query_one", args, true)
+		}),
+		"commit": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 0 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
+			}
+			if tx.closed || tx.tx == nil {
+				return object.NewError(0, "transaction is closed")
+			}
+			if err := tx.tx.Commit(); err != nil {
+				return object.NewError(0, "could not commit transaction: %s", err.Error())
+			}
+			tx.closed = true
+			tx.tx = nil
+			return &object.Null{}
+		}),
+		"rollback": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 0 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
+			}
+			if tx.closed || tx.tx == nil {
+				return object.NewError(0, "transaction is closed")
+			}
+			if err := tx.tx.Rollback(); err != nil {
+				return object.NewError(0, "could not rollback transaction: %s", err.Error())
+			}
+			tx.closed = true
+			tx.tx = nil
+			return &object.Null{}
+		}),
+		"is_closed": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 0 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
+			}
+			return boolObject(tx.closed || tx.tx == nil)
+		}),
+	})
+}
+
 func parseDBCallArgs(name string, args []object.Object) (string, []any, *object.Error) {
 	if len(args) != 1 && len(args) != 2 {
 		return "", nil, object.NewError(0, "wrong number of arguments. got=%d, want=1 or 2", len(args))
@@ -188,6 +242,48 @@ func parseDBCallArgs(name string, args []object.Object) (string, []any, *object.
 		params = append(params, value)
 	}
 	return query, params, nil
+}
+
+func dbExecObject(executor dbQueryExecutor, name string, args []object.Object) object.Object {
+	query, params, errObj := parseDBCallArgs(name, args)
+	if errObj != nil {
+		return errObj
+	}
+
+	result, err := executor.Exec(query, params...)
+	if err != nil {
+		return object.NewError(0, "db exec failed: %s", err.Error())
+	}
+	rowsAffected, _ := result.RowsAffected()
+	lastInsertID, _ := result.LastInsertId()
+	return hashObject(map[string]object.Object{
+		"rows_affected":  &object.Integer{Value: rowsAffected},
+		"last_insert_id": &object.Integer{Value: lastInsertID},
+	})
+}
+
+func dbQueryObject(executor dbQueryExecutor, name string, args []object.Object, one bool) object.Object {
+	query, params, errObj := parseDBCallArgs(name, args)
+	if errObj != nil {
+		return errObj
+	}
+	rows, err := executor.Query(query, params...)
+	if err != nil {
+		return object.NewError(0, "db query failed: %s", err.Error())
+	}
+	defer rows.Close()
+
+	records, errObj := rowsToArray(rows)
+	if errObj != nil {
+		return errObj
+	}
+	if one {
+		if len(records.Elements) == 0 {
+			return &object.Null{}
+		}
+		return records.Elements[0]
+	}
+	return records
 }
 
 func dbValueFromObject(obj object.Object) (any, *object.Error) {

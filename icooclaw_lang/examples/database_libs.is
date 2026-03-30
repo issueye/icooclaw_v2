@@ -5,6 +5,14 @@ conn.exec("create table users (id integer primary key autoincrement, name text, 
 conn.exec("insert into users (name, age) values (?, ?)", ["alice", 20])
 conn.exec("insert into users (name, age) values (?, ?)", ["bob", 30])
 
+tx = conn.begin()
+tx.exec("insert into users (name, age) values (?, ?)", ["carol", 40])
+tx.commit()
+
+tx2 = conn.begin()
+tx2.exec("insert into users (name, age) values (?, ?)", ["dave", 50])
+tx2.rollback()
+
 print(conn.query("select id, name, age from users order by id"))
 print(conn.query_one("select name, age from users where age > ?", [25]))
 print(conn.stats().driver)

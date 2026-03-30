@@ -68,6 +68,49 @@ conn.close()
 	}
 }
 
+func TestSQLiteTransactionsCommitAndRollback(t *testing.T) {
+	dbPath := filepath.ToSlash(filepath.Join(t.TempDir(), "tx.db"))
+
+	env, result := evalSource(t, fmt.Sprintf(`
+conn = db.sqlite.open("%s")
+conn.exec("create table ledger (id integer primary key autoincrement, name text, amount integer)")
+
+tx1 = conn.begin()
+tx1.exec("insert into ledger (name, amount) values (?, ?)", ["income", 100])
+tx1_status_before = tx1.is_closed()
+tx1.commit()
+tx1_status_after = tx1.is_closed()
+
+tx2 = conn.begin()
+tx2.exec("insert into ledger (name, amount) values (?, ?)", ["expense", 30])
+tx2.rollback()
+
+rows = conn.query("select name, amount from ledger order by id")
+row = conn.query_one("select name, amount from ledger order by id limit 1")
+conn.close()
+`, dbPath))
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	if got := testStringValue(t, env, "tx1_status_before"); got != "false" {
+		t.Fatalf("expected tx1_status_before=false, got %s", got)
+	}
+	if got := testStringValue(t, env, "tx1_status_after"); got != "true" {
+		t.Fatalf("expected tx1_status_after=true, got %s", got)
+	}
+
+	rows := testArrayValue(t, env, "rows")
+	if len(rows.Elements) != 1 {
+		t.Fatalf("expected 1 committed row, got %d", len(rows.Elements))
+	}
+	row := testHashValue(t, env, "row")
+	if row.Pairs["name"].Value.Inspect() != "income" || row.Pairs["amount"].Value.Inspect() != "100" {
+		t.Fatalf("unexpected committed row: %s", row.Inspect())
+	}
+}
+
 func TestMySQLAndPGDatabaseDriversOpenAndClose(t *testing.T) {
 	env, result := evalSource(t, `
 mysql_conn = db.mysql.open("user:pass@tcp(127.0.0.1:1)/demo")
