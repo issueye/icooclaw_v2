@@ -1,0 +1,12 @@
+fs.remove("demo.db")
+
+conn = db.sqlite.open("demo.db")
+conn.exec("create table users (id integer primary key autoincrement, name text, age integer)")
+conn.exec("insert into users (name, age) values (?, ?)", ["alice", 20])
+conn.exec("insert into users (name, age) values (?, ?)", ["bob", 30])
+
+print(conn.query("select id, name, age from users order by id"))
+print(conn.query_one("select name, age from users where age > ?", [25]))
+print(conn.stats().driver)
+
+conn.close()
