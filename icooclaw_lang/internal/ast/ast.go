@@ -195,6 +195,7 @@ type MatchStmt struct {
 type MatchCase struct {
 	Token    lexer.Token
 	Patterns []Expr
+	Guard    Expr
 	Result   Expr
 }
 
@@ -217,6 +218,9 @@ func (mc *MatchCase) String() string {
 			patterns += " | "
 		}
 		patterns += p.String()
+	}
+	if mc.Guard != nil {
+		patterns += " if " + mc.Guard.String()
 	}
 	return patterns + " -> " + mc.Result.String()
 }

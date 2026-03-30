@@ -409,26 +409,30 @@ func evalCallExpr(node *ast.CallExpr, env *object.Environment) object.Object {
 
 	switch fn := fn.(type) {
 	case *object.Function:
-		callEnv := object.NewEnclosedEnvironment(fn.Env)
-		if len(args) != len(fn.Params) {
-			return object.NewError(node.Token.Line, "wrong number of arguments: want=%d, got=%d",
-				len(fn.Params), len(args))
-		}
-		for i, param := range fn.Params {
-			if assigned := callEnv.Set(param.Value, args[i]); object.IsError(assigned) {
-				return assigned
-			}
-		}
-		result := evalBlockStmt(fn.Body, callEnv)
-		if ret, ok := result.(*object.Return); ok {
-			return ret.Value
-		}
-		return result
+		return callFunction(fn, args, node.Token.Line)
 	case *object.Builtin:
-		return fn.Fn(args...)
+		return fn.Fn(env, args...)
 	default:
 		return object.NewError(node.Token.Line, "not a function: %s", fn.Type())
 	}
+}
+
+func callFunction(fn *object.Function, args []object.Object, line int) object.Object {
+	callEnv := object.NewEnclosedEnvironment(fn.Env)
+	if len(args) != len(fn.Params) {
+		return object.NewError(line, "wrong number of arguments: want=%d, got=%d",
+			len(fn.Params), len(args))
+	}
+	for i, param := range fn.Params {
+		if assigned := callEnv.Set(param.Value, args[i]); object.IsError(assigned) {
+			return assigned
+		}
+	}
+	result := evalBlockStmt(fn.Body, callEnv)
+	if ret, ok := result.(*object.Return); ok {
+		return ret.Value
+	}
+	return result
 }
 
 func evalArgs(args []ast.Expr, env *object.Environment) []object.Object {

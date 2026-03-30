@@ -23,8 +23,27 @@ func evalMethodCallExpr(node *ast.MethodCallExpr, env *object.Environment) objec
 		return evalStringMethod(o, node.Method.Value, args, node.Token.Line)
 	case *object.Array:
 		return evalArrayMethod(o, node.Method.Value, args, node.Token.Line)
+	case *object.Hash:
+		return evalHashMethod(o, node.Method.Value, args, node.Token.Line, env)
 	default:
 		return object.NewError(node.Token.Line, "no method '%s' on type %s", node.Method.Value, o.Type())
+	}
+}
+
+func evalHashMethod(hash *object.Hash, method string, args []object.Object, line int, env *object.Environment) object.Object {
+	key := &object.String{Value: method}
+	pair, ok := hash.Pairs[object.HashKey(key)]
+	if !ok {
+		return object.NewError(line, "unknown method '%s' on HASH", method)
+	}
+
+	switch callee := pair.Value.(type) {
+	case *object.Builtin:
+		return callee.Fn(env, args...)
+	case *object.Function:
+		return callFunction(callee, args, line)
+	default:
+		return object.NewError(line, "property '%s' is not callable", method)
 	}
 }
 

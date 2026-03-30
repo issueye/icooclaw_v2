@@ -42,8 +42,8 @@ func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object
 	if val, ok := env.Get(node.Value); ok {
 		return val
 	}
-	if builtin, ok := builtin.Builtins[node.Value]; ok {
-		return builtin
+	if global, ok := builtin.Builtins[node.Value]; ok {
+		return global
 	}
 	return object.NewError(node.Token.Line, "identifier not found: %s", node.Value)
 }
@@ -167,17 +167,33 @@ func evalMatchStmt(node *ast.MatchStmt, env *object.Environment) object.Object {
 
 	for _, c := range node.Cases {
 		for _, pattern := range c.Patterns {
-			if _, ok := pattern.(*ast.UnderscoreExpr); ok {
-				return Eval(c.Result, env)
+			bindings := make(map[string]object.Object)
+			matched, matchErr := matchPattern(subject, pattern, env, bindings)
+			if matchErr != nil {
+				return matchErr
+			}
+			if !matched {
+				continue
 			}
 
-			patternVal := Eval(pattern, env)
-			if object.IsError(patternVal) {
-				return patternVal
+			caseEnv := object.NewEnclosedEnvironment(env)
+			for name, value := range bindings {
+				if assigned := caseEnv.Set(name, value); object.IsError(assigned) {
+					return assigned
+				}
 			}
-			if matchValues(subject, patternVal) {
-				return Eval(c.Result, env)
+
+			if c.Guard != nil {
+				guard := Eval(c.Guard, caseEnv)
+				if object.IsError(guard) {
+					return guard
+				}
+				if !object.IsTruthy(guard) {
+					continue
+				}
 			}
+
+			return Eval(c.Result, caseEnv)
 		}
 	}
 
@@ -211,6 +227,57 @@ func matchValues(subject, pattern object.Object) bool {
 		}
 	}
 	return false
+}
+
+func matchPattern(subject object.Object, pattern ast.Expr, env *object.Environment, bindings map[string]object.Object) (bool, *object.Error) {
+	switch pattern := pattern.(type) {
+	case *ast.UnderscoreExpr:
+		return true, nil
+	case *ast.Identifier:
+		if bound, ok := bindings[pattern.Value]; ok {
+			return matchValues(subject, bound), nil
+		}
+		bindings[pattern.Value] = subject
+		return true, nil
+	case *ast.ArrayLiteral:
+		subjectArray, ok := subject.(*object.Array)
+		if !ok || len(subjectArray.Elements) != len(pattern.Elements) {
+			return false, nil
+		}
+		for idx, elementPattern := range pattern.Elements {
+			matched, matchErr := matchPattern(subjectArray.Elements[idx], elementPattern, env, bindings)
+			if matchErr != nil || !matched {
+				return matched, matchErr
+			}
+		}
+		return true, nil
+	case *ast.HashLiteral:
+		subjectHash, ok := subject.(*object.Hash)
+		if !ok {
+			return false, nil
+		}
+		for keyNode, valuePattern := range pattern.Pairs {
+			keyObj := Eval(keyNode, env)
+			if errObj, ok := keyObj.(*object.Error); ok {
+				return false, errObj
+			}
+			pair, ok := subjectHash.Pairs[object.HashKey(keyObj)]
+			if !ok {
+				return false, nil
+			}
+			matched, matchErr := matchPattern(pair.Value, valuePattern, env, bindings)
+			if matchErr != nil || !matched {
+				return matched, matchErr
+			}
+		}
+		return true, nil
+	default:
+		patternVal := Eval(pattern, env)
+		if errObj, ok := patternVal.(*object.Error); ok {
+			return false, errObj
+		}
+		return matchValues(subject, patternVal), nil
+	}
 }
 
 func evalTryStmt(node *ast.TryStmt, env *object.Environment) object.Object {

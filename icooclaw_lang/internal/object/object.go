@@ -110,7 +110,7 @@ func (f *Function) Inspect() string {
 	return "fn " + f.Name + "(" + strings.Join(params, ", ") + ") { ... }"
 }
 
-type BuiltinFunction func(args ...Object) Object
+type BuiltinFunction func(env *Environment, args ...Object) Object
 
 type Builtin struct {
 	Fn BuiltinFunction

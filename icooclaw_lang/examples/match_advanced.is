@@ -1,0 +1,17 @@
+# Advanced match patterns
+
+pair = [3, 3]
+pair_result = match pair {
+    [x, x] -> "same pair: " + str(x)
+    [x, y] -> "different pair: " + str(x) + "," + str(y)
+    _ -> "no pair"
+}
+print(pair_result)
+
+payload = {"kind": "ok", "value": 7}
+payload_result = match payload {
+    {"kind": "ok", "value": value} if value > 5 -> "high value: " + str(value)
+    {"kind": "ok", "value": value} -> "low value: " + str(value)
+    _ -> "other payload"
+}
+print(payload_result)

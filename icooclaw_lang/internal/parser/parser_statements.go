@@ -278,6 +278,15 @@ func (p *Parser) parseMatchCase() *ast.MatchCase {
 		mc.Patterns = append(mc.Patterns, pattern)
 	}
 
+	if p.peekTokenIs(lexer.IF) {
+		p.nextToken()
+		p.nextToken()
+		mc.Guard = p.parseExpr(LOWEST)
+		if mc.Guard == nil {
+			return nil
+		}
+	}
+
 	if !p.expectPeek(lexer.ARROW) {
 		return nil
 	}

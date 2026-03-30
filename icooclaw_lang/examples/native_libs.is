@@ -1,0 +1,14 @@
+# Native libraries demo
+
+fs.write_file("native_demo.txt", "hello from fs")
+print(fs.read_file("native_demo.txt"))
+
+server = http.server.new()
+server.route("/hello", "hello from server")
+addr = server.start("127.0.0.1:0")
+
+resp = http.client.get("http://" + addr + "/hello")
+print(resp.status_code)
+print(resp.body)
+
+server.stop()
