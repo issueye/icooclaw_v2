@@ -1,5 +1,7 @@
 import { createPageRequest, request } from "./http";
 
+export { createPageRequest, request };
+
 export async function checkHealth() {
   return request("/api/v1/health");
 }

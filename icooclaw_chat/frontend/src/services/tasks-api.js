@@ -1,4 +1,4 @@
-import { request } from "./http";
+import { createCrudApi, request } from "./common-api";
 
 const api = createCrudApi("tasks");
 
@@ -21,5 +21,5 @@ export async function executeTask(id) {
   return request("/api/v1/tasks/execute", {
     method: "POST",
     body: JSON.stringify({ id }),
-  }
+  });
 }

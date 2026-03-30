@@ -1,4 +1,4 @@
-import { createCrudApi, createPageRequest, request } from "./common-api";
+import { createCrudApi, request } from "./common-api";
 
 const api = createCrudApi("agents");
 
