@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -44,6 +46,74 @@ print(os.script_path())
 	}
 	if lines[4] != scriptPath {
 		t.Fatalf("unexpected script_path output: %q", lines[4])
+	}
+}
+
+func TestBuildBundleProducesRunnableExecutable(t *testing.T) {
+	dir := t.TempDir()
+	scriptPath := filepath.Join(dir, "bundle.is")
+	script := `
+print("hello:" + os.arg(0))
+print(os.script_path())
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	outputPath := filepath.Join(dir, "bundle_app")
+	if runtime.GOOS == "windows" {
+		outputPath += ".exe"
+	}
+
+	runtimePath, err := os.Executable()
+	if err != nil {
+		t.Fatalf("resolve test executable: %v", err)
+	}
+
+	if err := buildBundleWithRuntime(scriptPath, outputPath, runtimePath); err != nil {
+		t.Fatalf("build bundle: %v", err)
+	}
+
+	cmd := exec.Command(outputPath, "-test.run=TestBundledHelperProcess", "--", "world")
+	cmd.Env = append(os.Environ(), "ICLANG_BUNDLE_HELPER=1")
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stdout
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("run bundled executable: %v, output=%s", err, stdout.String())
+	}
+
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected at least 2 output lines, got %d: %q", len(lines), stdout.String())
+	}
+	if lines[0] != "hello:world" {
+		t.Fatalf("unexpected bundled output: %q", lines[0])
+	}
+	if lines[1] != filepath.Base(scriptPath) {
+		t.Fatalf("unexpected bundled script path: %q", lines[1])
+	}
+}
+
+func TestBundledHelperProcess(t *testing.T) {
+	if os.Getenv("ICLANG_BUNDLE_HELPER") != "1" {
+		t.SkipNow()
+	}
+
+	args := os.Args[1:]
+	for i, arg := range os.Args {
+		if arg == "--" {
+			args = os.Args[i+1:]
+			break
+		}
+	}
+
+	handled, err := tryRunBundledExecutable(args)
+	if err != nil {
+		t.Fatalf("run bundled executable: %v", err)
+	}
+	if !handled {
+		t.Fatal("expected bundled payload to be handled")
 	}
 }
 

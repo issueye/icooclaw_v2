@@ -20,6 +20,14 @@
 9. 不要自行发明未记录的 API，也不要假设存在 camelCase 别名。
 10. 对于文档未说明的 lexer 保留关键字，一律视为不可用。
 
+运行与打包入口：
+
+```bash
+iclang run demo.is input.txt --mode=prod
+iclang build demo.is -o demo.exe
+demo.exe input.txt --mode=prod
+```
+
 ## 2. 规范运行时表面
 
 ### 2.1 核心函数

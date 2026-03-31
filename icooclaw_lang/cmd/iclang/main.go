@@ -2,9 +2,11 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/issueye/icooclaw_lang/internal/evaluator"
@@ -16,7 +18,18 @@ import (
 const VERSION = "0.1.0"
 
 func main() {
+	handled, err := tryRunBundledExecutable(os.Args[1:])
+	if err != nil {
+		fmt.Printf("Error: could not run bundled executable: %s\n", err)
+		os.Exit(1)
+	}
+	if handled {
+		return
+	}
+
 	runCmd := flag.NewFlagSet("run", flag.ExitOnError)
+	buildCmd := flag.NewFlagSet("build", flag.ExitOnError)
+	buildOutput := buildCmd.String("o", "", "output executable path")
 	versionFlag := flag.Bool("version", false, "print version")
 	flag.Parse()
 
@@ -25,6 +38,7 @@ func main() {
 		fmt.Println()
 		fmt.Println("Usage:")
 		fmt.Println("  iclang run <file.is> [args...]    Run a script file")
+		fmt.Println("  iclang build <file.is> [-o app]   Bundle script and runtime into an executable")
 		fmt.Println("  iclang version          Show version")
 		fmt.Println("  iclang repl             Start interactive REPL")
 		os.Exit(0)
@@ -45,6 +59,28 @@ func main() {
 			os.Exit(1)
 		}
 		runFile(args[0], args[1:])
+	case "build":
+		buildCmd.Parse(os.Args[2:])
+		args := buildCmd.Args()
+		if len(args) == 0 {
+			fmt.Println("Error: no input file specified")
+			fmt.Println("Usage: iclang build <file.is> [-o app]")
+			os.Exit(1)
+		}
+
+		output := *buildOutput
+		if output == "" {
+			output = defaultBundleOutputPath(args[0])
+		}
+		if err := buildBundle(args[0], output); err != nil {
+			fmt.Printf("Error: could not build bundle: %s\n", err)
+			os.Exit(1)
+		}
+		absOutput, err := filepath.Abs(output)
+		if err != nil {
+			absOutput = output
+		}
+		fmt.Println(absOutput)
 	case "version":
 		fmt.Println("iclang v" + VERSION)
 	case "repl":
@@ -62,7 +98,14 @@ func runFile(filename string, scriptArgs []string) {
 		os.Exit(1)
 	}
 
-	l := lexer.New(string(data))
+	if err := executeScriptSource(filename, string(data), scriptArgs); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+func executeScriptSource(scriptPath, source string, scriptArgs []string) error {
+	l := lexer.New(source)
 	p := parser.New(l)
 
 	program := p.ParseProgram()
@@ -70,20 +113,20 @@ func runFile(filename string, scriptArgs []string) {
 		for _, e := range p.Errors() {
 			fmt.Println("Parse Error:", e)
 		}
-		os.Exit(1)
+		return errors.New("parse failed")
 	}
 
 	env := object.NewEnvironment()
-	env.SetCLIContext(filename, scriptArgs)
+	env.SetCLIContext(scriptPath, scriptArgs)
 	result := evaluator.Eval(program, env)
 	env.Wait()
 
 	if result != nil {
 		if err, ok := result.(*object.Error); ok {
-			fmt.Println(err.Inspect())
-			os.Exit(1)
+			return errors.New(err.Inspect())
 		}
 	}
+	return nil
 }
 
 func startRepl() {

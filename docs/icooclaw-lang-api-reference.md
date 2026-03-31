@@ -22,9 +22,16 @@ CLI 用法：
 
 ```bash
 iclang run <file.is> [args...]
+iclang build <file.is> [-o app]
 iclang repl
 iclang version
 ```
+
+打包说明：
+
+- `iclang build demo.is -o demo.exe` 会生成一个单文件可执行程序
+- 生成的程序内嵌脚本源码和当前 runtime，不再依赖外部 `.is` 文件
+- 打包后的程序直接接收脚本参数，例如 `demo.exe input.txt --mode=prod`
 
 REPL 和脚本文件执行共享同一套 parser、evaluator 和 builtin 注册表。
 
