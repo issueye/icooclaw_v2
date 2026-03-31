@@ -349,7 +349,23 @@ func (p *Parser) parseImportStmt() *ast.ImportStmt {
 	stmt := &ast.ImportStmt{Token: p.curToken}
 	p.nextToken()
 
+	if p.curTokenIs(lexer.LBRACE) {
+		stmt.Names = p.parseImportNames()
+		if stmt.Names == nil {
+			return nil
+		}
+		if !p.curTokenIs(lexer.IDENTIFIER) || p.curToken.Literal != "from" {
+			msg := fmt.Sprintf("line %d: expected 'from' after import list, got %s", p.curToken.Line, p.curToken.Literal)
+			p.errors = append(p.errors, msg)
+			return nil
+		}
+		p.nextToken()
+	}
+
 	stmt.Module = p.parseExpr(LOWEST)
+	if stmt.Module == nil {
+		return nil
+	}
 
 	if p.peekTokenIs(lexer.IDENTIFIER) && p.peekToken.Literal == "as" {
 		p.nextToken()
@@ -361,6 +377,43 @@ func (p *Parser) parseImportStmt() *ast.ImportStmt {
 
 	p.finishStatement()
 	return stmt
+}
+
+func (p *Parser) parseImportNames() []*ast.Identifier {
+	var names []*ast.Identifier
+
+	p.nextToken()
+	p.skipNewlines()
+
+	for !p.curTokenIs(lexer.RBRACE) && !p.curTokenIs(lexer.EOF) {
+		if !p.curTokenIs(lexer.IDENTIFIER) {
+			msg := fmt.Sprintf("line %d: expected identifier in import list, got %s", p.curToken.Line, p.curToken.Type)
+			p.errors = append(p.errors, msg)
+			return nil
+		}
+		names = append(names, &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal})
+
+		p.skipPeekNewlines()
+		if p.peekTokenIs(lexer.COMMA) {
+			p.nextToken()
+			p.nextToken()
+			p.skipNewlines()
+			continue
+		}
+		if p.peekTokenIs(lexer.RBRACE) {
+			p.nextToken()
+			p.nextToken()
+			return names
+		}
+
+		msg := fmt.Sprintf("line %d: expected ',' or '}' in import list, got %s", p.curToken.Line, p.peekToken.Type)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+
+	msg := fmt.Sprintf("line %d: unterminated import list", p.curToken.Line)
+	p.errors = append(p.errors, msg)
+	return nil
 }
 
 func (p *Parser) parseExportStmt() *ast.ExportStmt {

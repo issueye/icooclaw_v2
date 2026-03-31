@@ -7,6 +7,15 @@
 
 这份文档只描述“当前已经实现并验证过”的能力，不把词法层保留但未真正开放的关键字算进稳定 API。
 
+模块系统说明：
+
+- 只支持 `import`
+- 当前支持本地 `.is` 文件模块
+- `import "./mod.is"` 会按文件名生成模块命名空间，例如 `math.is -> math`
+- `import "./mod.is" as alias` 可显式指定别名
+- `import { foo, bar } from "./mod.is"` 会把导出符号直接绑定到当前作用域
+- 只有被 `export name` 声明的符号可被导入
+
 ## 1. 运行入口
 
 CLI 用法：
@@ -82,6 +91,24 @@ result = match payload {
 - 重复变量捕获，例如 `[x, x]`
 - 哈希解构
 - `if ...` 守卫条件
+
+- 模块导入：
+
+```is
+import "./modules/math.is" as math
+import "./modules/math.is"
+import { add, VERSION } from "./modules/math.is"
+```
+
+- 模块导出：
+
+```is
+fn add(a, b) {
+    return a + b
+}
+
+export add
+```
 
 ## 3. 核心类型
 

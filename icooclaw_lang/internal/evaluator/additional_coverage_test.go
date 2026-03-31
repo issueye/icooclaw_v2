@@ -2,6 +2,7 @@ package evaluator
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -323,6 +324,95 @@ crypto.base_64_decode("%%%")
 `)
 	if !object.IsError(cryptoErr) {
 		t.Fatalf("expected invalid base64 to return error, got %#v", cryptoErr)
+	}
+}
+
+func TestModuleImportNamespaceAndNamedImport(t *testing.T) {
+	rootDir := t.TempDir()
+	modulePath := filepath.Join(rootDir, "math.is")
+	if err := os.WriteFile(modulePath, []byte(`
+const VERSION = "1.0.0"
+
+fn add(a, b) {
+    return a + b
+}
+
+export add
+export VERSION
+`), 0o644); err != nil {
+		t.Fatalf("write module: %v", err)
+	}
+
+	env := object.NewEnvironment()
+	env.SetCLIContext(filepath.Join(rootDir, "main.is"), nil)
+	result := Eval(parseProgramForTest(t, `
+import "./math.is"
+import { add, VERSION } from "./math.is"
+sum_a = math.add(2, 3)
+sum_b = add(4, 5)
+version = VERSION
+module_version = math.VERSION
+`), env)
+	env.Wait()
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	if got := testStringValue(t, env, "sum_a"); got != "5" {
+		t.Fatalf("expected sum_a=5, got %s", got)
+	}
+	if got := testStringValue(t, env, "sum_b"); got != "9" {
+		t.Fatalf("expected sum_b=9, got %s", got)
+	}
+	if got := testStringValue(t, env, "version"); got != "1.0.0" {
+		t.Fatalf("expected version=1.0.0, got %s", got)
+	}
+	if got := testStringValue(t, env, "module_version"); got != "1.0.0" {
+		t.Fatalf("expected module_version=1.0.0, got %s", got)
+	}
+}
+
+func TestModuleImportNestedRelativePath(t *testing.T) {
+	rootDir := t.TempDir()
+	libDir := filepath.Join(rootDir, "lib")
+	if err := os.MkdirAll(libDir, 0o755); err != nil {
+		t.Fatalf("mkdir lib: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(libDir, "constants.is"), []byte(`
+const BASE = 21
+export BASE
+`), 0o644); err != nil {
+		t.Fatalf("write constants module: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(libDir, "math.is"), []byte(`
+import { BASE } from "./constants.is"
+
+fn double_base() {
+    return BASE * 2
+}
+
+export double_base
+`), 0o644); err != nil {
+		t.Fatalf("write math module: %v", err)
+	}
+
+	env := object.NewEnvironment()
+	env.SetCLIContext(filepath.Join(rootDir, "main.is"), nil)
+	result := Eval(parseProgramForTest(t, `
+import "./lib/math.is" as math
+answer = math.double_base()
+`), env)
+	env.Wait()
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	if got := testStringValue(t, env, "answer"); got != "42" {
+		t.Fatalf("expected answer=42, got %s", got)
 	}
 }
 

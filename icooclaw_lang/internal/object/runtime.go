@@ -5,11 +5,11 @@ import "sync"
 type Caller func(env *Environment, fn Object, args []Object, line int) Object
 
 type Runtime struct {
-	mu         sync.RWMutex
-	wg         sync.WaitGroup
-	caller     Caller
-	cliArgs    []string
-	scriptPath string
+	mu            sync.RWMutex
+	wg            sync.WaitGroup
+	caller        Caller
+	moduleCache   map[string]*Hash
+	loadingModule map[string]bool
 }
 
 var (
@@ -22,7 +22,11 @@ func NewRuntime() *Runtime {
 	caller := defaultCaller
 	defaultCallerMu.RUnlock()
 
-	return &Runtime{caller: caller}
+	return &Runtime{
+		caller:        caller,
+		moduleCache:   make(map[string]*Hash),
+		loadingModule: make(map[string]bool),
+	}
 }
 
 func RegisterDefaultCaller(caller Caller) {

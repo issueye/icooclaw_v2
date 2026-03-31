@@ -193,3 +193,12 @@ func HashKey(obj Object) string {
 		return obj.Inspect()
 	}
 }
+
+func HashFromObjects(values map[string]Object) *Hash {
+	pairs := make(map[string]HashPair, len(values))
+	for key, value := range values {
+		keyObj := &String{Value: key}
+		pairs[key] = HashPair{Key: keyObj, Value: value}
+	}
+	return &Hash{Pairs: pairs}
+}

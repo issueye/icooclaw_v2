@@ -1,0 +1,9 @@
+# module imports demo
+
+import "./modules/math.is"
+import { add, VERSION } from "./modules/math.is"
+
+print(math.add(2, 3))
+print(add(4, 5))
+print(VERSION)
+print(math.sub(10, 3))

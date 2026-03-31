@@ -49,9 +49,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.TryStmt:
 		return evalTryStmt(node, env)
 	case *ast.ImportStmt:
-		return &object.Null{}
+		return evalImportStmt(node, env)
 	case *ast.ExportStmt:
-		return &object.Null{}
+		return evalExportStmt(node, env)
 	case *ast.GoStmt:
 		return evalGoStmt(node, env)
 	case *ast.BlockStmt:

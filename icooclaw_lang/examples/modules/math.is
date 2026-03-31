@@ -1,0 +1,13 @@
+const VERSION = "1.0.0"
+
+fn add(a, b) {
+    return a + b
+}
+
+fn sub(a, b) {
+    return a - b
+}
+
+export add
+export sub
+export VERSION

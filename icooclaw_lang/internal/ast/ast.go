@@ -242,13 +242,26 @@ func (ts *TryStmt) String() string {
 type ImportStmt struct {
 	Token  lexer.Token
 	Module Expr
+	Names  []*Identifier
 	Alias  *Identifier
 }
 
 func (is *ImportStmt) statementNode()       {}
 func (is *ImportStmt) TokenLiteral() string { return is.Token.Literal }
 func (is *ImportStmt) String() string {
-	out := "import " + is.Module.String()
+	out := "import "
+	if len(is.Names) > 0 {
+		out += "{"
+		for i, name := range is.Names {
+			if i > 0 {
+				out += ", "
+			}
+			out += name.String()
+		}
+		out += "} from " + is.Module.String()
+	} else {
+		out += is.Module.String()
+	}
 	if is.Alias != nil {
 		out += " as " + is.Alias.String()
 	}

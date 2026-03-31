@@ -133,6 +133,26 @@ result = match payload {
 }
 ```
 
+### 3.7 import 模块
+
+```is
+import "./modules/math.is" as math
+import { add, VERSION } from "./modules/math.is"
+```
+
+模块中导出已有符号：
+
+```is
+fn add(a, b) {
+    return a + b
+}
+
+const VERSION = "1.0.0"
+
+export add
+export VERSION
+```
+
 ## 4. 内建库总览
 
 当前 builtin 根对象：

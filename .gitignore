@@ -3,3 +3,5 @@
 *.txt
 
 icooclaw_agent/.gocache/*
+icooclaw_lang/.gocache/*
+icooclaw_lang/.gomodcache/*
