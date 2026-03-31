@@ -416,6 +416,53 @@ answer = math.double_base()
 	}
 }
 
+func TestClosureCapturesFunctionLocalAfterReturn(t *testing.T) {
+	env, result := evalSource(t, `
+fn make_adder(base) {
+    fn add(v) {
+        return base + v
+    }
+
+    return add
+}
+
+adder = make_adder(10)
+value = adder(5)
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	if got := testStringValue(t, env, "value"); got != "15" {
+		t.Fatalf("expected value=15, got %s", got)
+	}
+}
+
+func TestGoClosureCapturesFunctionLocalAfterReturn(t *testing.T) {
+	env, result := evalSource(t, `
+result = 0
+
+fn schedule(v) {
+    fn write() {
+        result = v
+    }
+
+    go write()
+}
+
+schedule(42)
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	if got := testStringValue(t, env, "result"); got != "42" {
+		t.Fatalf("expected result=42, got %s", got)
+	}
+}
+
 func parseProgramForTest(t *testing.T, input string) *ast.Program {
 	t.Helper()
 

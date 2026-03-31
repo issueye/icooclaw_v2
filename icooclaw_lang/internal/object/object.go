@@ -99,6 +99,7 @@ type Function struct {
 	Params []*ast.Identifier
 	Body   *ast.BlockStmt
 	Env    *Environment
+	TransientSafe bool
 }
 
 func (f *Function) Type() ObjectType { return FUNCTION_OBJ }

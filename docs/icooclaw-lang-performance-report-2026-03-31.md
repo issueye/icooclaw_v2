@@ -1,8 +1,8 @@
-# icooclaw_lang 性能测试与分析报告
+# icooclaw\_lang 性能测试与分析报告
 
-日期：`2026-03-31`  
-目录：`icooclaw_lang/`  
-平台：`Windows amd64`  
+日期：`2026-03-31`\
+目录：`icooclaw_lang/`\
+平台：`Windows amd64`\
 CPU：`Intel(R) Core(TM) i5-10500 CPU @ 3.10GHz`
 
 ## 1. 测试范围
@@ -30,10 +30,10 @@ go test ./internal/parser ./internal/evaluator -run ^$ -bench . -benchmem -count
 
 ### 2.1 Parser / Lexer
 
-| Benchmark | 典型耗时 | 吞吐 | 内存 | 分配次数 |
-| --- | ---: | ---: | ---: | ---: |
-| `BenchmarkLexProgram` | `8.3-9.2 us/op` | `40-44 MB/s` | `16096 B/op` | `93 allocs/op` |
-| `BenchmarkParseProgram` | `16.0-17.3 us/op` | `21-23 MB/s` | `11680 B/op` | `248 allocs/op` |
+| Benchmark                    |              典型耗时 |           吞吐 |           内存 |            分配次数 |
+| ---------------------------- | ----------------: | -----------: | -----------: | --------------: |
+| `BenchmarkLexProgram`        |   `8.3-9.2 us/op` | `40-44 MB/s` | `16096 B/op` |  `93 allocs/op` |
+| `BenchmarkParseProgram`      | `16.0-17.3 us/op` | `21-23 MB/s` | `11680 B/op` | `248 allocs/op` |
 | `BenchmarkParseLargeProgram` | `43.1-53.4 us/op` | `20-26 MB/s` | `28920 B/op` | `642 allocs/op` |
 
 结论：
@@ -44,11 +44,11 @@ go test ./internal/parser ./internal/evaluator -run ^$ -bench . -benchmem -count
 
 ### 2.2 Evaluator
 
-| Benchmark | 典型耗时 | 吞吐 | 内存 | 分配次数 |
-| --- | ---: | ---: | ---: | ---: |
-| `BenchmarkEvalProgram` | `574-578 us/op` | `0.42-0.43 MB/s` | `725952-725968 B/op` | `10053 allocs/op` |
+| Benchmark                    |            典型耗时 |               吞吐 |                   内存 |              分配次数 |
+| ---------------------------- | --------------: | ---------------: | -------------------: | ----------------: |
+| `BenchmarkEvalProgram`       | `574-578 us/op` | `0.42-0.43 MB/s` | `725952-725968 B/op` | `10053 allocs/op` |
 | `BenchmarkEvalFunctionCalls` | `542-545 us/op` | `0.16-0.17 MB/s` | `719606-719607 B/op` | `10523 allocs/op` |
-| `BenchmarkEvalJSONRoundTrip` | `7.7-8.0 us/op` | `25-26 MB/s` | `6004 B/op` | `110 allocs/op` |
+| `BenchmarkEvalJSONRoundTrip` | `7.7-8.0 us/op` |     `25-26 MB/s` |          `6004 B/op` |   `110 allocs/op` |
 
 结论：
 
@@ -58,10 +58,10 @@ go test ./internal/parser ./internal/evaluator -run ^$ -bench . -benchmem -count
 
 ### 2.3 模块系统
 
-| Benchmark | 典型耗时 | 吞吐 | 内存 | 分配次数 |
-| --- | ---: | ---: | ---: | ---: |
-| `BenchmarkEvalModuleImportCold` | `55.7-57.0 us/op` | `0.32 MB/s` | `10136 B/op` | `135 allocs/op` |
-| `BenchmarkEvalModuleImportWarm` | `3.2-3.4 us/op` | `5.3-5.6 MB/s` | `2552 B/op` | `33 allocs/op` |
+| Benchmark                       |              典型耗时 |             吞吐 |           内存 |            分配次数 |
+| ------------------------------- | ----------------: | -------------: | -----------: | --------------: |
+| `BenchmarkEvalModuleImportCold` | `55.7-57.0 us/op` |    `0.32 MB/s` | `10136 B/op` | `135 allocs/op` |
+| `BenchmarkEvalModuleImportWarm` |   `3.2-3.4 us/op` | `5.3-5.6 MB/s` |  `2552 B/op` |  `33 allocs/op` |
 
 结论：
 
@@ -232,12 +232,12 @@ go tool pprof -top mem_eval_calls.out
 2. 在内部新建 `Runtime`
 3. 然后再把 `env.runtime = outer.runtime`
 
-这意味着大量 `Runtime` 被创建后立刻丢弃。  
+这意味着大量 `Runtime` 被创建后立刻丢弃。\
 从 profile 看，这一项单独就贡献了 `20%+` 的分配空间，应该优先修。
 
 ### P1：降低循环体中的 `Environment` 创建频率
 
-当前 `for` 每轮创建新的 enclosed environment。  
+当前 `for` 每轮创建新的 enclosed environment。\
 如果语言语义允许，可以考虑：
 
 - 复用循环作用域对象
@@ -299,30 +299,30 @@ go tool pprof -top mem_eval_calls.out
 
 #### Evaluator 主路径
 
-| 指标 | 优化前 | 优化后 | 变化 |
-| --- | ---: | ---: | ---: |
-| `BenchmarkEvalProgram ns/op` | `~574-578 us` | `~396-398 us` | 约 `31%` 改善 |
-| `BenchmarkEvalProgram B/op` | `~725952 B` | `~469242 B` | 约 `35%` 改善 |
-| `BenchmarkEvalProgram allocs/op` | `10053` | `5039` | 约 `49.9%` 改善 |
+| 指标                               |           优化前 |           优化后 |           变化 |
+| -------------------------------- | ------------: | ------------: | -----------: |
+| `BenchmarkEvalProgram ns/op`     | `~574-578 us` | `~396-398 us` |   约 `31%` 改善 |
+| `BenchmarkEvalProgram B/op`      |   `~725952 B` |   `~469242 B` |   约 `35%` 改善 |
+| `BenchmarkEvalProgram allocs/op` |       `10053` |        `5039` | 约 `49.9%` 改善 |
 
 #### 函数调用密集路径
 
-| 指标 | 优化前 | 优化后 | 变化 |
-| --- | ---: | ---: | ---: |
-| `BenchmarkEvalFunctionCalls ns/op` | `~542-545 us` | `~369-370 us` | 约 `32%` 改善 |
-| `BenchmarkEvalFunctionCalls B/op` | `~719607 B` | `~463409 B` | 约 `35.6%` 改善 |
-| `BenchmarkEvalFunctionCalls allocs/op` | `10523` | `5519` | 约 `47.6%` 改善 |
+| 指标                                     |           优化前 |           优化后 |           变化 |
+| -------------------------------------- | ------------: | ------------: | -----------: |
+| `BenchmarkEvalFunctionCalls ns/op`     | `~542-545 us` | `~369-370 us` |   约 `32%` 改善 |
+| `BenchmarkEvalFunctionCalls B/op`      |   `~719607 B` |   `~463409 B` | 约 `35.6%` 改善 |
+| `BenchmarkEvalFunctionCalls allocs/op` |       `10523` |        `5519` | 约 `47.6%` 改善 |
 
 #### 模块导入路径
 
-| 指标 | 优化前 | 优化后 | 变化 |
-| --- | ---: | ---: | ---: |
-| `BenchmarkEvalModuleImportCold ns/op` | `~55.7-57.0 us` | `~55.2-55.5 us` | 小幅改善 |
-| `BenchmarkEvalModuleImportCold B/op` | `10136 B` | `9560 B` | 改善 |
-| `BenchmarkEvalModuleImportCold allocs/op` | `135` | `123` | 改善 |
-| `BenchmarkEvalModuleImportWarm ns/op` | `~3.2-3.4 us` | `~2.8 us` | 约 `15%+` 改善 |
-| `BenchmarkEvalModuleImportWarm B/op` | `2552 B` | `2024 B` | 改善 |
-| `BenchmarkEvalModuleImportWarm allocs/op` | `33` | `22` | 明显改善 |
+| 指标                                        |             优化前 |             优化后 |          变化 |
+| ----------------------------------------- | --------------: | --------------: | ----------: |
+| `BenchmarkEvalModuleImportCold ns/op`     | `~55.7-57.0 us` | `~55.2-55.5 us` |        小幅改善 |
+| `BenchmarkEvalModuleImportCold B/op`      |       `10136 B` |        `9560 B` |          改善 |
+| `BenchmarkEvalModuleImportCold allocs/op` |           `135` |           `123` |          改善 |
+| `BenchmarkEvalModuleImportWarm ns/op`     |   `~3.2-3.4 us` |       `~2.8 us` | 约 `15%+` 改善 |
+| `BenchmarkEvalModuleImportWarm B/op`      |        `2552 B` |        `2024 B` |          改善 |
+| `BenchmarkEvalModuleImportWarm allocs/op` |            `33` |            `22` |        明显改善 |
 
 ### 9.2 优化后 pprof 结论
 
@@ -414,7 +414,7 @@ go test ./internal/evaluator -run ^$ -bench 'BenchmarkEvalProgram$|BenchmarkEval
 
 ## 12. 第三轮优化尝试
 
-第二轮之后，没有继续碰“作用域对象复用”，因为这条线虽然潜在收益更高，但对闭包、递归和模块执行语义的回归风险也更高。  
+第二轮之后，没有继续碰“作用域对象复用”，因为这条线虽然潜在收益更高，但对闭包、递归和模块执行语义的回归风险也更高。\
 因此第三轮选择了更保守的两项改动：
 
 - `NewEnclosedEnvironment()` / `NewDetachedEnvironment()` 的 `store` 改为小容量预分配
@@ -438,11 +438,11 @@ go test ./internal/evaluator -run ^$ -bench BenchmarkEvalModuleImportWarm$ -benc
 
 结果：
 
-| Benchmark | 典型耗时 | 内存 | 分配次数 |
-| --- | ---: | ---: | ---: |
-| `BenchmarkEvalProgram` | `396-400 us/op` | `469491-469502 B/op` | `5037 allocs/op` |
-| `BenchmarkEvalFunctionCalls` | `378-381 us/op` | `455651-455656 B/op` | `5018 allocs/op` |
-| `BenchmarkEvalModuleImportWarm` | `2.78-2.79 us/op` | `1993 B/op` | `21 allocs/op` |
+| Benchmark                       |              典型耗时 |                   内存 |             分配次数 |
+| ------------------------------- | ----------------: | -------------------: | ---------------: |
+| `BenchmarkEvalProgram`          |   `396-400 us/op` | `469491-469502 B/op` | `5037 allocs/op` |
+| `BenchmarkEvalFunctionCalls`    |   `378-381 us/op` | `455651-455656 B/op` | `5018 allocs/op` |
+| `BenchmarkEvalModuleImportWarm` | `2.78-2.79 us/op` |          `1993 B/op` |   `21 allocs/op` |
 
 ### 12.2 结果解释
 
@@ -480,11 +480,11 @@ go test ./internal/evaluator -run ^$ -bench BenchmarkEvalModuleImportWarm$ -benc
 
 结果：
 
-| Benchmark | 典型耗时 | 内存 | 分配次数 |
-| --- | ---: | ---: | ---: |
-| `BenchmarkEvalProgram` | `392-396 us/op` | `469490-469499 B/op` | `5037 allocs/op` |
-| `BenchmarkEvalFunctionCalls` | `378-383 us/op` | `455651-455658 B/op` | `5018 allocs/op` |
-| `BenchmarkEvalModuleImportWarm` | `2.734-2.739 us/op` | `1993 B/op` | `21 allocs/op` |
+| Benchmark                       |                典型耗时 |                   内存 |             分配次数 |
+| ------------------------------- | ------------------: | -------------------: | ---------------: |
+| `BenchmarkEvalProgram`          |     `392-396 us/op` | `469490-469499 B/op` | `5037 allocs/op` |
+| `BenchmarkEvalFunctionCalls`    |     `378-383 us/op` | `455651-455658 B/op` | `5018 allocs/op` |
+| `BenchmarkEvalModuleImportWarm` | `2.734-2.739 us/op` |          `1993 B/op` |   `21 allocs/op` |
 
 ### 13.2 结果解释
 
@@ -535,11 +535,11 @@ go test ./internal/evaluator -run ^$ -bench BenchmarkEvalModuleImportWarm$ -benc
 
 结果：
 
-| Benchmark | 典型耗时 | 内存 | 分配次数 |
-| --- | ---: | ---: | ---: |
-| `BenchmarkEvalProgram` | `398-420 us/op` | `469484-469492 B/op` | `5036 allocs/op` |
-| `BenchmarkEvalFunctionCalls` | `383-412 us/op` | `455650-455657 B/op` | `5018 allocs/op` |
-| `BenchmarkEvalModuleImportWarm` | `2.78-2.91 us/op` | `1993 B/op` | `21 allocs/op` |
+| Benchmark                       |              典型耗时 |                   内存 |             分配次数 |
+| ------------------------------- | ----------------: | -------------------: | ---------------: |
+| `BenchmarkEvalProgram`          |   `398-420 us/op` | `469484-469492 B/op` | `5036 allocs/op` |
+| `BenchmarkEvalFunctionCalls`    |   `383-412 us/op` | `455650-455657 B/op` | `5018 allocs/op` |
+| `BenchmarkEvalModuleImportWarm` | `2.78-2.91 us/op` |          `1993 B/op` |   `21 allocs/op` |
 
 ### 14.2 结果解释
 
@@ -556,5 +556,82 @@ go test ./internal/evaluator -run ^$ -bench BenchmarkEvalModuleImportWarm$ -benc
   - `Environment.store` 的 map 写入
   - 其它更重的短生命周期运行时对象
 
-所以第五轮的价值主要在于“排除了一条常见但次要的优化方向”。  
+所以第五轮的价值主要在于“排除了一条常见但次要的优化方向”。\
 接下来如果还要继续获得显著收益，就基本需要进入更深层的 runtime 结构优化，而不是继续做对象级微调。
+
+## 15. 第六轮优化尝试
+
+第五轮之后，终于进入了更高收益的路线：**只对“证明不会逃逸”的作用域做受控复用**。
+
+这轮不是盲目池化所有 `Environment`，而是增加了一个保守边界：
+
+- 函数体内如果包含 `fn` 或 `go`，则认为调用作用域可能逃逸，不复用
+- `for` / `catch` 的 block 也按同样规则判断
+- `match` 的绑定作用域只用于 guard/result 求值，不承载函数声明，因此直接走短生命周期复用
+
+实现上：
+
+- 增加 transient environment 池
+- 为 `Function` 增加 `TransientSafe` 标记
+- `callFunction` / `for` / `match` / `catch` 只在 `blockAllowsTransientReuse(...) == true` 时借用并归还作用域
+
+这类设计比“全局作用域复用”更复杂，但关键差别是：**收益来自少建对象，而语义安全来自保守判定**。
+
+### 15.1 正确性验证
+
+除了全量 `go test ./...` 之外，本轮额外补了两类回归测试：
+
+- 闭包返回后继续读取外层局部变量
+- `go` 启动的闭包在外层函数返回后继续读取局部变量
+
+这两类场景正是最容易被错误作用域复用破坏的路径。\
+测试通过，说明当前“只复用非逃逸作用域”的边界是成立的。
+
+### 15.2 第六轮结果
+
+复测命令：
+
+```powershell
+go test ./internal/evaluator -run ^$ -bench BenchmarkEvalProgram$ -benchmem -count 3
+go test ./internal/evaluator -run ^$ -bench BenchmarkEvalFunctionCalls$ -benchmem -count 3
+go test ./internal/evaluator -run ^$ -bench BenchmarkEvalModuleImportWarm$ -benchmem -count 3
+```
+
+结果：
+
+| Benchmark                       |              典型耗时 |                 内存 |             分配次数 |
+| ------------------------------- | ----------------: | -----------------: | ---------------: |
+| `BenchmarkEvalProgram`          |   `277-288 us/op` | `52437-52447 B/op` | `2030 allocs/op` |
+| `BenchmarkEvalFunctionCalls`    |   `282-303 us/op` | `39452-39457 B/op` | `2018 allocs/op` |
+| `BenchmarkEvalModuleImportWarm` | `2.60-2.81 us/op` |        `1594 B/op` |   `18 allocs/op` |
+
+### 15.3 与上一轮相比
+
+相对第五轮：
+
+- `BenchmarkEvalProgram`
+  - 从 `~398-420 us/op` 降到 `~277-288 us/op`
+  - 从 `~469484-469492 B/op` 降到 `~52437-52447 B/op`
+  - 从 `5036 allocs/op` 降到 `2030 allocs/op`
+- `BenchmarkEvalFunctionCalls`
+  - 从 `~383-412 us/op` 降到 `~282-303 us/op`
+  - 从 `~455650-455657 B/op` 降到 `~39452-39457 B/op`
+  - 从 `5018 allocs/op` 降到 `2018 allocs/op`
+- `BenchmarkEvalModuleImportWarm`
+  - 从 `~2.78-2.91 us/op` 降到 `~2.60-2.81 us/op`
+  - 从 `1993 B/op` 降到 `1594 B/op`
+  - 从 `21 allocs/op` 降到 `18 allocs/op`
+
+### 15.4 结果解释
+
+这轮结果说明：
+
+- evaluator 的主瓶颈确实就是短生命周期作用域对象
+- 只要把“安全可复用”的这一部分削掉，整体收益会远大于前几轮所有微优化
+- 前几轮对 `Set`、参数切片、`null/boolean` 单例的判断没有错，但它们都只是次级因素
+
+因此当前结论可以更新为：
+
+- **最有效的优化方向不是对象级微调，而是受控的作用域生命周期优化**
+- 只要继续保持“保守复用、显式验证”的策略，这条线还有继续推进的价值
+

@@ -70,15 +70,18 @@ func evalForStmt(node *ast.ForStmt, env *object.Environment) object.Object {
 	}
 
 	var result object.Object = object.NullObject()
+	transientSafe := blockAllowsTransientReuse(node.Body)
 
 	switch iterable := iterable.(type) {
 	case *object.Array:
 		for _, elem := range iterable.Elements {
-			loopEnv := object.NewEnclosedEnvironment(env)
+			loopEnv := newScopedEnv(env, transientSafe)
 			if assigned := loopEnv.DefineLocal(node.Ident.Value, elem); object.IsError(assigned) {
+				releaseScopedEnv(loopEnv)
 				return assigned
 			}
 			result = evalBlockStmt(node.Body, loopEnv)
+			releaseScopedEnv(loopEnv)
 			if object.IsError(result) {
 				return result
 			}
@@ -94,11 +97,13 @@ func evalForStmt(node *ast.ForStmt, env *object.Environment) object.Object {
 		}
 	case *object.Hash:
 		for _, pair := range iterable.Pairs {
-			loopEnv := object.NewEnclosedEnvironment(env)
+			loopEnv := newScopedEnv(env, transientSafe)
 			if assigned := loopEnv.DefineLocal(node.Ident.Value, pair.Key); object.IsError(assigned) {
+				releaseScopedEnv(loopEnv)
 				return assigned
 			}
 			result = evalBlockStmt(node.Body, loopEnv)
+			releaseScopedEnv(loopEnv)
 			if object.IsError(result) {
 				return result
 			}
@@ -151,10 +156,11 @@ func evalWhileStmt(node *ast.WhileStmt, env *object.Environment) object.Object {
 
 func evalFunctionStmt(node *ast.FunctionStmt, env *object.Environment) object.Object {
 	fn := &object.Function{
-		Name:   node.Name.Value,
-		Params: node.Params,
-		Body:   node.Body,
-		Env:    env,
+		Name:          node.Name.Value,
+		Params:        node.Params,
+		Body:          node.Body,
+		Env:           env,
+		TransientSafe: blockAllowsTransientReuse(node.Body),
 	}
 	return env.Set(node.Name.Value, fn)
 }
@@ -176,22 +182,27 @@ func evalMatchStmt(node *ast.MatchStmt, env *object.Environment) object.Object {
 				continue
 			}
 
-			caseEnv := object.NewEnclosedEnvironment(env)
+			caseEnv := object.AcquireTransientEnclosedEnvironment(env)
 			if assigned := caseEnv.DefineLocals(bindings); object.IsError(assigned) {
+				object.ReleaseTransientEnvironment(caseEnv)
 				return assigned
 			}
 
 			if c.Guard != nil {
 				guard := Eval(c.Guard, caseEnv)
 				if object.IsError(guard) {
+					object.ReleaseTransientEnvironment(caseEnv)
 					return guard
 				}
 				if !object.IsTruthy(guard) {
+					object.ReleaseTransientEnvironment(caseEnv)
 					continue
 				}
 			}
 
-			return Eval(c.Result, caseEnv)
+			result := Eval(c.Result, caseEnv)
+			object.ReleaseTransientEnvironment(caseEnv)
+			return result
 		}
 	}
 
@@ -282,7 +293,8 @@ func evalTryStmt(node *ast.TryStmt, env *object.Environment) object.Object {
 	result := evalBlockStmt(node.TryBlock, env)
 
 	if object.IsError(result) {
-		catchEnv := object.NewEnclosedEnvironment(env)
+		catchEnv := newScopedEnv(env, blockAllowsTransientReuse(node.CatchBlock))
+		defer releaseScopedEnv(catchEnv)
 		errObj, ok := result.(*object.Error)
 		if ok {
 			catchEnv.DefineLocal(node.CatchVar.Value, &object.String{Value: errObj.Message})
@@ -293,6 +305,22 @@ func evalTryStmt(node *ast.TryStmt, env *object.Environment) object.Object {
 	}
 
 	return result
+}
+
+func newScopedEnv(outer *object.Environment, transientSafe bool) *object.Environment {
+	if transientSafe {
+		return object.AcquireTransientEnclosedEnvironment(outer)
+	}
+	return object.NewEnclosedEnvironment(outer)
+}
+
+func releaseScopedEnv(env *object.Environment) {
+	if env == nil {
+		return
+	}
+	if env.IsTransient() {
+		object.ReleaseTransientEnvironment(env)
+	}
 }
 
 func evalGoStmt(node *ast.GoStmt, env *object.Environment) object.Object {

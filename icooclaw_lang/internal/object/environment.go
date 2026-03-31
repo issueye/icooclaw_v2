@@ -1,6 +1,10 @@
 package object
 
-import "github.com/issueye/icooclaw_lang/internal/ast"
+import (
+	"sync"
+
+	"github.com/issueye/icooclaw_lang/internal/ast"
+)
 
 const defaultLocalStoreCapacity = 4
 
@@ -12,6 +16,7 @@ type Environment struct {
 	cliArgs    []string
 	scriptPath string
 	runtime    *Runtime
+	transient  bool
 }
 
 func NewEnvironment() *Environment {
@@ -38,6 +43,40 @@ func NewDetachedEnvironment(proto *Environment) *Environment {
 		scriptPath: proto.scriptPath,
 		runtime:    proto.runtime,
 	}
+}
+
+func AcquireTransientEnclosedEnvironment(outer *Environment) *Environment {
+	env := transientEnvPool.Get().(*Environment)
+	env.outer = outer
+	env.cliArgs = outer.cliArgs
+	env.scriptPath = outer.scriptPath
+	env.runtime = outer.runtime
+	env.transient = true
+	return env
+}
+
+func ReleaseTransientEnvironment(env *Environment) {
+	clear(env.store)
+	if env.consts != nil {
+		clear(env.consts)
+	}
+	if env.exports != nil {
+		clear(env.exports)
+	}
+	env.outer = nil
+	env.cliArgs = nil
+	env.scriptPath = ""
+	env.runtime = nil
+	env.transient = false
+	transientEnvPool.Put(env)
+}
+
+func (e *Environment) IsTransient() bool {
+	return e.transient
+}
+
+func (e *Environment) Runtime() *Runtime {
+	return e.runtime
 }
 
 func (e *Environment) Get(name string) (Object, bool) {
@@ -276,4 +315,12 @@ func (e *Environment) findVarUnlocked(name string) *Environment {
 		return e.outer.findVarUnlocked(name)
 	}
 	return nil
+}
+
+var transientEnvPool = sync.Pool{
+	New: func() any {
+		return &Environment{
+			store: make(map[string]Object, defaultLocalStoreCapacity),
+		}
+	},
 }

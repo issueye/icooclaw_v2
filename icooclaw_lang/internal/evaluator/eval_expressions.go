@@ -417,7 +417,8 @@ func evalCallExpr(node *ast.CallExpr, env *object.Environment) object.Object {
 }
 
 func callFunction(fn *object.Function, args []object.Object, line int) object.Object {
-	callEnv := object.NewEnclosedEnvironment(fn.Env)
+	callEnv := newScopedEnv(fn.Env, fn.TransientSafe)
+	defer releaseScopedEnv(callEnv)
 	if assigned := callEnv.DefineFunctionParams(fn.Params, args, line); object.IsError(assigned) {
 		return assigned
 	}
