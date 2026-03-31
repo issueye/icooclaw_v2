@@ -15,7 +15,7 @@ import (
 	"github.com/issueye/icooclaw_lang/internal/parser"
 )
 
-const VERSION = "0.1.0"
+var VERSION = "0.1.0"
 
 func main() {
 	handled, err := tryRunBundledExecutable(os.Args[1:])
