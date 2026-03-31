@@ -14,6 +14,13 @@ func evalMethodCallExpr(node *ast.MethodCallExpr, env *object.Environment) objec
 	}
 
 	return withCallArgs(node.Arguments, env, func(args []object.Object) object.Object {
+		if node.Method.Value == "to_string" {
+			if len(args) != 0 {
+				return object.NewError(node.Token.Line, "to_string() expects 0 arguments")
+			}
+			return &object.String{Value: obj.Inspect()}
+		}
+
 		switch o := obj.(type) {
 		case *object.String:
 			return evalStringMethod(o, node.Method.Value, args, node.Token.Line)

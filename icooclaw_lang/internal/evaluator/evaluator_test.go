@@ -210,6 +210,39 @@ same = type(42) == type_of(42)
 	}
 }
 
+func TestToStringMethodWorksForAllRuntimeValues(t *testing.T) {
+	env, result := evalSource(t, `
+int_text = 42.to_string()
+bool_text = true.to_string()
+array_text = [1, 2].to_string()
+hash_text = {"name": "icooclaw"}.to_string()
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	intText, _ := env.Get("int_text")
+	if intText.Inspect() != "42" {
+		t.Fatalf("expected int_text=42, got %s", intText.Inspect())
+	}
+
+	boolText, _ := env.Get("bool_text")
+	if boolText.Inspect() != "true" {
+		t.Fatalf("expected bool_text=true, got %s", boolText.Inspect())
+	}
+
+	arrayText, _ := env.Get("array_text")
+	if arrayText.Inspect() != "[1, 2]" {
+		t.Fatalf("expected array_text=[1, 2], got %s", arrayText.Inspect())
+	}
+
+	hashText, _ := env.Get("hash_text")
+	if hashText.Inspect() != "{name: icooclaw}" {
+		t.Fatalf("expected hash_text={name: icooclaw}, got %s", hashText.Inspect())
+	}
+}
+
 func TestCommentsAreIgnoredByLexerAndParser(t *testing.T) {
 	env, result := evalSource(t, `
 x = 1 // first value
