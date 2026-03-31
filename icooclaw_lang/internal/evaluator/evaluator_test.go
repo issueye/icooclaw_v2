@@ -504,6 +504,142 @@ ok_name = user?["name"]
 	}
 }
 
+func TestSafeDotUpdateShortCircuitsForNullObject(t *testing.T) {
+	env, result := evalSource(t, `
+user = null
+first = user?.count++
+second = user?.count += 2
+
+profile = {
+    "count": 1
+}
+third = profile?.count++
+fourth = profile?.count += 2
+final_count = profile.count
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	first, _ := env.Get("first")
+	if first.Inspect() != "null" {
+		t.Fatalf("expected first=null, got %s", first.Inspect())
+	}
+
+	second, _ := env.Get("second")
+	if second.Inspect() != "null" {
+		t.Fatalf("expected second=null, got %s", second.Inspect())
+	}
+
+	third, _ := env.Get("third")
+	if third.Inspect() != "2" {
+		t.Fatalf("expected third=2, got %s", third.Inspect())
+	}
+
+	fourth, _ := env.Get("fourth")
+	if fourth.Inspect() != "4" {
+		t.Fatalf("expected fourth=4, got %s", fourth.Inspect())
+	}
+
+	finalCount, _ := env.Get("final_count")
+	if finalCount.Inspect() != "4" {
+		t.Fatalf("expected final_count=4, got %s", finalCount.Inspect())
+	}
+}
+
+func TestSafeIndexUpdateShortCircuitsForNullContainer(t *testing.T) {
+	env, result := evalSource(t, `
+stats = null
+first = stats?["count"]++
+second = stats?["count"] += 2
+
+items = null
+third = items?[0]++
+
+ready = {"count": 1}
+ok_first = ready?["count"]++
+ok_second = ready?["count"] += 3
+final_count = ready["count"]
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	first, _ := env.Get("first")
+	if first.Inspect() != "null" {
+		t.Fatalf("expected first=null, got %s", first.Inspect())
+	}
+
+	second, _ := env.Get("second")
+	if second.Inspect() != "null" {
+		t.Fatalf("expected second=null, got %s", second.Inspect())
+	}
+
+	third, _ := env.Get("third")
+	if third.Inspect() != "null" {
+		t.Fatalf("expected third=null, got %s", third.Inspect())
+	}
+
+	okFirst, _ := env.Get("ok_first")
+	if okFirst.Inspect() != "2" {
+		t.Fatalf("expected ok_first=2, got %s", okFirst.Inspect())
+	}
+
+	okSecond, _ := env.Get("ok_second")
+	if okSecond.Inspect() != "5" {
+		t.Fatalf("expected ok_second=5, got %s", okSecond.Inspect())
+	}
+
+	finalCount, _ := env.Get("final_count")
+	if finalCount.Inspect() != "5" {
+		t.Fatalf("expected final_count=5, got %s", finalCount.Inspect())
+	}
+}
+
+func TestChainedSafeFieldAndIndexAccessWorks(t *testing.T) {
+	env, result := evalSource(t, `
+user = null
+missing_name = user?.profile?.name
+missing_tag = user?.profile?["tag"]
+
+account = {
+    "profile": {
+        "name": "icooclaw",
+        "tag": "runtime"
+    }
+}
+
+name = account?.profile?.name
+tag = account?.profile?["tag"]
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	missingName, _ := env.Get("missing_name")
+	if missingName.Inspect() != "null" {
+		t.Fatalf("expected missing_name=null, got %s", missingName.Inspect())
+	}
+
+	missingTag, _ := env.Get("missing_tag")
+	if missingTag.Inspect() != "null" {
+		t.Fatalf("expected missing_tag=null, got %s", missingTag.Inspect())
+	}
+
+	name, _ := env.Get("name")
+	if name.Inspect() != "icooclaw" {
+		t.Fatalf("expected name=icooclaw, got %s", name.Inspect())
+	}
+
+	tag, _ := env.Get("tag")
+	if tag.Inspect() != "runtime" {
+		t.Fatalf("expected tag=runtime, got %s", tag.Inspect())
+	}
+}
+
 func TestMethodDeclarationRequiresExistingHashReceiver(t *testing.T) {
 	_, result := evalSource(t, `
 value = 1

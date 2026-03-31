@@ -302,6 +302,11 @@ func evalAssignExpr(node *ast.AssignExpr, env *object.Environment) object.Object
 		if object.IsError(obj) {
 			return obj
 		}
+		if left.Safe {
+			if _, ok := obj.(*object.Null); ok {
+				return object.NullObject()
+			}
+		}
 		index := Eval(left.Index, env)
 		if object.IsError(index) {
 			return index
@@ -328,6 +333,11 @@ func evalAssignExpr(node *ast.AssignExpr, env *object.Environment) object.Object
 		obj := Eval(left.Left, env)
 		if object.IsError(obj) {
 			return obj
+		}
+		if left.Safe {
+			if _, ok := obj.(*object.Null); ok {
+				return object.NullObject()
+			}
 		}
 		hash, ok := obj.(*object.Hash)
 		if !ok {
@@ -377,6 +387,11 @@ func evalCompoundAssignExpr(node *ast.CompoundAssignExpr, env *object.Environmen
 		if object.IsError(obj) {
 			return obj
 		}
+		if left.Safe {
+			if _, ok := obj.(*object.Null); ok {
+				return object.NullObject()
+			}
+		}
 		hash, ok := obj.(*object.Hash)
 		if !ok {
 			return object.NewError(node.Token.Line, "dot compound assignment not supported on %s", obj.Type())
@@ -396,6 +411,11 @@ func evalCompoundAssignExpr(node *ast.CompoundAssignExpr, env *object.Environmen
 		obj := Eval(left.Left, env)
 		if object.IsError(obj) {
 			return obj
+		}
+		if left.Safe {
+			if _, ok := obj.(*object.Null); ok {
+				return object.NullObject()
+			}
 		}
 		index := Eval(left.Index, env)
 		if object.IsError(index) {
@@ -465,6 +485,11 @@ func evalPostfixExpr(node *ast.PostfixExpr, env *object.Environment) object.Obje
 		if object.IsError(obj) {
 			return obj
 		}
+		if left.Safe {
+			if _, ok := obj.(*object.Null); ok {
+				return object.NullObject()
+			}
+		}
 		hash, ok := obj.(*object.Hash)
 		if !ok {
 			return object.NewError(node.Token.Line, "dot postfix operator not supported on %s", obj.Type())
@@ -484,6 +509,11 @@ func evalPostfixExpr(node *ast.PostfixExpr, env *object.Environment) object.Obje
 		obj := Eval(left.Left, env)
 		if object.IsError(obj) {
 			return obj
+		}
+		if left.Safe {
+			if _, ok := obj.(*object.Null); ok {
+				return object.NullObject()
+			}
 		}
 		index := Eval(left.Index, env)
 		if object.IsError(index) {

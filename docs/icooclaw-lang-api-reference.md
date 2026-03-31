@@ -228,6 +228,9 @@ user.rename("codex")
 - `ARRAY` / `HASH` 的索引位置也支持 `items[i]++`、`stats["count"] += 1`
 - 安全访问支持 `obj?.field` 和 `obj?.method()`，当 `obj == null` 时返回 `null`
 - 安全索引支持 `arr?[0]` 和 `obj?["name"]`，当容器为 `null` 时返回 `null`
+- 安全更新支持 `obj?.field += 1` 和 `obj?.field++`，当对象为 `null` 时返回 `null`
+- 安全索引更新支持 `obj?["count"] += 1`、`obj?["count"]++` 和 `arr?[0]++`
+- 连续链式安全访问已验证 `user?.profile?.name` 和 `user?.profile?["tag"]`
 - 直接把函数取出来再调用时，不会自动保留这个绑定
 
 ## 6. 内建库
