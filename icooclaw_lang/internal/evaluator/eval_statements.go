@@ -64,6 +64,10 @@ func evalIfStmt(node *ast.IfStmt, env *object.Environment) object.Object {
 }
 
 func evalForStmt(node *ast.ForStmt, env *object.Environment) object.Object {
+	if rangeResult, handled := evalRangeForStmt(node, env); handled {
+		return rangeResult
+	}
+
 	iterable := Eval(node.Iterable, env)
 	if object.IsError(iterable) {
 		return iterable
@@ -122,6 +126,85 @@ func evalForStmt(node *ast.ForStmt, env *object.Environment) object.Object {
 	}
 
 	return result
+}
+
+func evalRangeForStmt(node *ast.ForStmt, env *object.Environment) (object.Object, bool) {
+	call, ok := node.Iterable.(*ast.CallExpr)
+	if !ok {
+		return nil, false
+	}
+
+	ident, ok := call.Function.(*ast.Identifier)
+	if !ok || ident.Value != "range" {
+		return nil, false
+	}
+
+	start, stop, errObj := evalRangeBounds(call.Arguments, env)
+	if errObj != nil {
+		return errObj, true
+	}
+
+	var result object.Object = object.NullObject()
+	transientSafe := blockAllowsTransientReuse(node.Body)
+	for i := start; i < stop; i++ {
+		loopEnv := newScopedEnv(env, transientSafe)
+		if assigned := loopEnv.DefineLocal(node.Ident.Value, &object.Integer{Value: i}); object.IsError(assigned) {
+			releaseScopedEnv(loopEnv)
+			return assigned, true
+		}
+		result = evalBlockStmt(node.Body, loopEnv)
+		releaseScopedEnv(loopEnv)
+		if object.IsError(result) {
+			return result, true
+		}
+		if object.IsBreak(result) {
+			break
+		}
+		if object.IsContinue(result) {
+			continue
+		}
+		if object.IsReturn(result) {
+			return result, true
+		}
+	}
+
+	return result, true
+}
+
+func evalRangeBounds(args []ast.Expr, env *object.Environment) (int64, int64, *object.Error) {
+	switch len(args) {
+	case 1:
+		stopObj := Eval(args[0], env)
+		if errObj, ok := stopObj.(*object.Error); ok {
+			return 0, 0, errObj
+		}
+		stop, ok := stopObj.(*object.Integer)
+		if !ok {
+			return 0, 0, object.NewError(0, "argument to `range` must be INTEGER, got %s", stopObj.Type())
+		}
+		return 0, stop.Value, nil
+	case 2:
+		startObj := Eval(args[0], env)
+		if errObj, ok := startObj.(*object.Error); ok {
+			return 0, 0, errObj
+		}
+		stopObj := Eval(args[1], env)
+		if errObj, ok := stopObj.(*object.Error); ok {
+			return 0, 0, errObj
+		}
+
+		start, ok := startObj.(*object.Integer)
+		if !ok {
+			return 0, 0, object.NewError(0, "argument to `range` must be INTEGER, got %s", startObj.Type())
+		}
+		stop, ok := stopObj.(*object.Integer)
+		if !ok {
+			return 0, 0, object.NewError(0, "argument to `range` must be INTEGER, got %s", stopObj.Type())
+		}
+		return start.Value, stop.Value, nil
+	default:
+		return 0, 0, object.NewError(0, "wrong number of arguments. got=%d, want=1 or 2", len(args))
+	}
 }
 
 func evalWhileStmt(node *ast.WhileStmt, env *object.Environment) object.Object {

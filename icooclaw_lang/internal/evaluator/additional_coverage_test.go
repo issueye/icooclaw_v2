@@ -463,6 +463,33 @@ schedule(42)
 	}
 }
 
+func TestForRangeFastPathPreservesRangeBehavior(t *testing.T) {
+	env, result := evalSource(t, `
+total = 0
+for i in range(2, 5) {
+    total += i
+}
+
+items = range(2, 5)
+length = len(items)
+last = items[2]
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	if got := testStringValue(t, env, "total"); got != "9" {
+		t.Fatalf("expected total=9, got %s", got)
+	}
+	if got := testStringValue(t, env, "length"); got != "3" {
+		t.Fatalf("expected length=3, got %s", got)
+	}
+	if got := testStringValue(t, env, "last"); got != "4" {
+		t.Fatalf("expected last=4, got %s", got)
+	}
+}
+
 func parseProgramForTest(t *testing.T, input string) *ast.Program {
 	t.Helper()
 

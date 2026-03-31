@@ -635,3 +635,81 @@ go test ./internal/evaluator -run ^$ -bench BenchmarkEvalModuleImportWarm$ -benc
 - **最有效的优化方向不是对象级微调，而是受控的作用域生命周期优化**
 - 只要继续保持“保守复用、显式验证”的策略，这条线还有继续推进的价值
 
+## 16. 第七轮优化尝试
+
+在第六轮之后重新抓的 `pprof` 很关键，它显示热点已经明显转移：
+
+- `NewEnclosedEnvironment` 已经基本退出主热点
+- `alloc_space` 的大头变成了 `coreBuiltins.func4`
+- 对照 `core.go` 可以确认，这里就是 `range(...)` 的数组物化实现
+
+也就是说，上一轮把“作用域对象”这座大山搬走以后，新的主要浪费变成了：
+
+- `for i in range(n)` 先构造整段数组
+- 再在循环里逐个读取
+
+这类开销对 benchmark 来说非常不划算，因为循环本身只需要“一个递增整数流”，并不真的需要先构造完整数组。
+
+### 16.1 本轮策略
+
+这次没有改变 `range()` 的公开语义。  
+而是只在 `for` 语句内部增加一个专用快路径：
+
+- 如果检测到 `for x in range(...)`
+- 则直接按 `start/stop` 做整数迭代
+- 不再先调用 builtin `range` 去分配整段数组
+
+这样可以同时满足两点：
+
+- `range()` 作为普通表达式时，仍然返回原来的数组
+- `for ... in range(...)` 则不再为中间数组付费
+
+另外补了回归测试，确认：
+
+- `for ... in range(2, 5)` 的结果正确
+- `items = range(2, 5)` 仍然保持数组行为，不被快路径改变
+
+### 16.2 第七轮结果
+
+复测命令：
+
+```powershell
+go test ./internal/evaluator -run ^$ -bench BenchmarkEvalProgram$ -benchmem -count 3
+go test ./internal/evaluator -run ^$ -bench BenchmarkEvalFunctionCalls$ -benchmem -count 3
+```
+
+结果：
+
+| Benchmark | 典型耗时 | 内存 | 分配次数 |
+| --- | ---: | ---: | ---: |
+| `BenchmarkEvalProgram` | `266-281 us/op` | `17188-17192 B/op` | `2018 allocs/op` |
+| `BenchmarkEvalFunctionCalls` | `278-296 us/op` | `20602-20609 B/op` | `2007 allocs/op` |
+
+### 16.3 与第六轮相比
+
+- `BenchmarkEvalProgram`
+  - 从 `~277-288 us/op` 降到 `~266-281 us/op`
+  - 从 `~52437-52447 B/op` 降到 `~17188-17192 B/op`
+  - 从 `2030 allocs/op` 降到 `2018 allocs/op`
+
+- `BenchmarkEvalFunctionCalls`
+  - 时间基本持平，小幅波动
+  - 从 `~39452-39457 B/op` 降到 `~20602-20609 B/op`
+  - 从 `2018 allocs/op` 降到 `2007 allocs/op`
+
+### 16.4 结果解释
+
+这轮说明：
+
+- `range` 的数组物化确实是第六轮之后新的主要分配热点
+- 只要把循环专用路径改成“流式迭代”，内存马上大幅下降
+- 这也进一步证明当前优化节奏是对的：
+  - 先用 `pprof` 找到真正的大头
+  - 再做最小行为改动的专用快路径
+
+到这里，`for ... in range(...)` 已经不再是主要浪费点了。  
+如果继续往下做，下一轮应该重新抓 profile，确认新的大头是否已经收敛到：
+
+- `evalArithmeticForCompound`
+- `evalPlusOperator`
+- `Environment.Set / Get`
