@@ -187,7 +187,10 @@ func (e *Environment) DefineConstLocal(name string, val Object) Object {
 }
 
 func (e *Environment) Wait() {
-	e.runtime.wg.Wait()
+	if e.runtime == nil {
+		return
+	}
+	e.runtime.Wait()
 }
 
 func (e *Environment) SetCLIContext(scriptPath string, args []string) {
@@ -297,12 +300,7 @@ func (e *Environment) Go(fn func()) {
 		go fn()
 		return
 	}
-
-	runtime.wg.Add(1)
-	go func() {
-		defer runtime.wg.Done()
-		fn()
-	}()
+	runtime.Go(fn)
 }
 
 func (e *Environment) getUnlocked(name string) (Object, bool) {

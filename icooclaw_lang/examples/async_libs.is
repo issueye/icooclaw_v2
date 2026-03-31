@@ -1,5 +1,9 @@
 # async demo
 
+print("runtime concurrency = " + str(async.runtime_concurrency()))
+async.set_runtime_concurrency(4)
+print("updated runtime concurrency = " + str(async.runtime_concurrency()))
+
 total = 0
 pool = async.pool(2)
 wg = async.wait_group()

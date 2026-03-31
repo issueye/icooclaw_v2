@@ -313,6 +313,28 @@ wg.done()
 	}
 }
 
+func TestAsyncRuntimeConcurrencyCanBeConfiguredAtRuntime(t *testing.T) {
+	env, result := evalSource(t, `
+before = async.runtime_concurrency()
+changed = async.set_runtime_concurrency(3)
+after = async.runtime_concurrency()
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	changed, _ := env.Get("changed")
+	if changed.Inspect() != "3" {
+		t.Fatalf("expected changed=3, got %s", changed.Inspect())
+	}
+
+	after, _ := env.Get("after")
+	if after.Inspect() != "3" {
+		t.Fatalf("expected after=3, got %s", after.Inspect())
+	}
+}
+
 func TestFSLibraryReadWriteAndStat(t *testing.T) {
 	dir := filepath.ToSlash(t.TempDir())
 	filePath := dir + "/sample.txt"

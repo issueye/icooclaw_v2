@@ -213,6 +213,8 @@ export add
 | --- | --- | --- |
 | `async.pool` | `async.pool(size)` | `HASH` |
 | `async.wait_group` | `async.wait_group()` | `HASH` |
+| `async.runtime_concurrency` | `async.runtime_concurrency()` | `INTEGER` |
+| `async.set_runtime_concurrency` | `async.set_runtime_concurrency(size)` | `INTEGER` |
 
 `async.pool(size)` 返回池对象，当前支持：
 
@@ -234,6 +236,8 @@ export add
 示例：
 
 ```is
+async.set_runtime_concurrency(4)
+
 total = 0
 pool = async.pool(2)
 wg = async.wait_group()
@@ -251,6 +255,11 @@ for i in range(1, 5) {
 wg.wait()
 pool.wait()
 ```
+
+说明：
+
+- runtime 默认并发度会读取环境变量 `ICLANG_MAX_GOROUTINES`
+- `async.set_runtime_concurrency(n)` 会修改当前 runtime 后续启动 worker 时的默认并发度
 
 ### 6.2 fs
 

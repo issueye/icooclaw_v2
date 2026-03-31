@@ -24,7 +24,39 @@ func newAsyncLib() *object.Hash {
 	return hashObject(map[string]object.Object{
 		"pool": builtinFunc(asyncPoolNew),
 		"wait_group": builtinFunc(asyncWaitGroupNew),
+		"runtime_concurrency": builtinFunc(asyncRuntimeConcurrency),
+		"set_runtime_concurrency": builtinFunc(asyncSetRuntimeConcurrency),
 	})
+}
+
+func asyncRuntimeConcurrency(env *object.Environment, args ...object.Object) object.Object {
+	if len(args) != 0 {
+		return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
+	}
+	if env == nil || env.Runtime() == nil {
+		return object.NewError(0, "runtime is not available")
+	}
+	return &object.Integer{Value: int64(env.Runtime().MaxConcurrency())}
+}
+
+func asyncSetRuntimeConcurrency(env *object.Environment, args ...object.Object) object.Object {
+	if len(args) != 1 {
+		return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+	}
+	if env == nil || env.Runtime() == nil {
+		return object.NewError(0, "runtime is not available")
+	}
+
+	size, errObj := integerArg(args[0], "argument to `set_runtime_concurrency` must be INTEGER, got %s")
+	if errObj != nil {
+		return errObj
+	}
+	if size <= 0 {
+		return object.NewError(0, "argument to `set_runtime_concurrency` must be > 0")
+	}
+
+	env.Runtime().SetMaxConcurrency(int(size))
+	return &object.Integer{Value: size}
 }
 
 func asyncPoolNew(env *object.Environment, args ...object.Object) object.Object {
