@@ -106,6 +106,7 @@ user.rename("codex")
 - 方法体内也可以直接使用 receiver 名 `u`
 - `HASH` 支持 `obj.field = value` 和 `obj.field += value`
 - 变量和 `HASH` 字段支持 `++` / `--`
+- `ARRAY` / `HASH` 的索引位置支持 `items[i]++`、`stats["count"] += 1`
 
 ## 3. 推荐语法模板
 

@@ -384,6 +384,43 @@ final_visits = user.visits
 	}
 }
 
+func TestIndexPostfixAndCompoundAssignmentWorkForArrayAndHash(t *testing.T) {
+	env, result := evalSource(t, `
+items = [1, 2, 3]
+items[1]++
+items[2] += 4
+
+stats = {
+    "count": 5
+}
+stats["count"]--
+stats["count"] += 6
+
+item_value = items[1]
+item_total = items[2]
+count_value = stats["count"]
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	itemValue, _ := env.Get("item_value")
+	if itemValue.Inspect() != "3" {
+		t.Fatalf("expected item_value=3, got %s", itemValue.Inspect())
+	}
+
+	itemTotal, _ := env.Get("item_total")
+	if itemTotal.Inspect() != "7" {
+		t.Fatalf("expected item_total=7, got %s", itemTotal.Inspect())
+	}
+
+	countValue, _ := env.Get("count_value")
+	if countValue.Inspect() != "10" {
+		t.Fatalf("expected count_value=10, got %s", countValue.Inspect())
+	}
+}
+
 func TestMethodDeclarationRequiresExistingHashReceiver(t *testing.T) {
 	_, result := evalSource(t, `
 value = 1

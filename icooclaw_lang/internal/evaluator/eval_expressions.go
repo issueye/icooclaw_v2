@@ -392,6 +392,45 @@ func evalCompoundAssignExpr(node *ast.CompoundAssignExpr, env *object.Environmen
 		}
 		hash.Pairs[object.HashKey(key)] = object.HashPair{Key: key, Value: result}
 		return result
+	case *ast.IndexExpr:
+		obj := Eval(left.Left, env)
+		if object.IsError(obj) {
+			return obj
+		}
+		index := Eval(left.Index, env)
+		if object.IsError(index) {
+			return index
+		}
+		switch obj := obj.(type) {
+		case *object.Array:
+			idx, ok := index.(*object.Integer)
+			if !ok {
+				return object.NewError(node.Token.Line, "array index must be INTEGER")
+			}
+			if idx.Value < 0 || int(idx.Value) >= len(obj.Elements) {
+				return object.NewError(node.Token.Line, "index out of bounds: %d", idx.Value)
+			}
+			result := evalArithmeticForCompound(obj.Elements[idx.Value], right, op, node.Token.Line)
+			if object.IsError(result) {
+				return result
+			}
+			obj.Elements[idx.Value] = result
+			return result
+		case *object.Hash:
+			key := object.HashKey(index)
+			pair, ok := obj.Pairs[key]
+			if !ok {
+				return object.NewError(node.Token.Line, "property not found: %s", index.Inspect())
+			}
+			result := evalArithmeticForCompound(pair.Value, right, op, node.Token.Line)
+			if object.IsError(result) {
+				return result
+			}
+			obj.Pairs[key] = object.HashPair{Key: index, Value: result}
+			return result
+		default:
+			return object.NewError(node.Token.Line, "index compound assignment not supported on %s", obj.Type())
+		}
 	default:
 		return object.NewError(node.Token.Line, "invalid compound assignment target")
 	}
@@ -441,6 +480,45 @@ func evalPostfixExpr(node *ast.PostfixExpr, env *object.Environment) object.Obje
 		}
 		hash.Pairs[object.HashKey(key)] = object.HashPair{Key: key, Value: result}
 		return result
+	case *ast.IndexExpr:
+		obj := Eval(left.Left, env)
+		if object.IsError(obj) {
+			return obj
+		}
+		index := Eval(left.Index, env)
+		if object.IsError(index) {
+			return index
+		}
+		switch obj := obj.(type) {
+		case *object.Array:
+			idx, ok := index.(*object.Integer)
+			if !ok {
+				return object.NewError(node.Token.Line, "array index must be INTEGER")
+			}
+			if idx.Value < 0 || int(idx.Value) >= len(obj.Elements) {
+				return object.NewError(node.Token.Line, "index out of bounds: %d", idx.Value)
+			}
+			result := evalArithmeticForCompound(obj.Elements[idx.Value], one, op, node.Token.Line)
+			if object.IsError(result) {
+				return result
+			}
+			obj.Elements[idx.Value] = result
+			return result
+		case *object.Hash:
+			key := object.HashKey(index)
+			pair, ok := obj.Pairs[key]
+			if !ok {
+				return object.NewError(node.Token.Line, "property not found: %s", index.Inspect())
+			}
+			result := evalArithmeticForCompound(pair.Value, one, op, node.Token.Line)
+			if object.IsError(result) {
+				return result
+			}
+			obj.Pairs[key] = object.HashPair{Key: index, Value: result}
+			return result
+		default:
+			return object.NewError(node.Token.Line, "index postfix operator not supported on %s", obj.Type())
+		}
 	default:
 		return object.NewError(node.Token.Line, "invalid postfix target")
 	}

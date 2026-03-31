@@ -225,6 +225,7 @@ user.rename("codex")
 - 如果声明了 receiver 名，例如 `u`，方法体内也可以直接使用 `u`
 - `HASH` 现在支持 `obj.field = value` 和 `obj.field += value` 这类点赋值
 - 变量和 `HASH` 字段都支持后缀 `++` / `--`
+- `ARRAY` / `HASH` 的索引位置也支持 `items[i]++`、`stats["count"] += 1`
 - 直接把函数取出来再调用时，不会自动保留这个绑定
 
 ## 6. 内建库
