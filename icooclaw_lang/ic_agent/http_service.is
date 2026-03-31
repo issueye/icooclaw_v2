@@ -1,0 +1,32 @@
+import "./modules/http_api.is" as api
+
+addr = os.flag_or("addr", "127.0.0.1:8080")
+
+server = http.server.new()
+server.route_file("GET", "/", "./ic_agent/web/index.html", "text/html; charset=utf-8")
+server.handle("GET", "/health", api.health_handler)
+server.handle("GET", "/tools", api.tools_handler)
+server.handle("POST", "/chat", api.chat_handler)
+server.not_found({
+    "status_code": 404,
+    "body": json.stringify({
+        "ok": false,
+        "error": "not found",
+    }),
+    "headers": {
+        "Content-Type": "application/json",
+    },
+})
+
+listen_addr = server.start(addr)
+
+print("ic_agent http service")
+print("addr: " + listen_addr)
+print("ui: " + server.url("/"))
+print("health: " + server.url("/health"))
+print("tools: " + server.url("/tools"))
+print("chat: " + server.url("/chat"))
+
+while true {
+    time.sleep(3600)
+}

@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ic_agent</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --panel: #fffaf2;
+      --ink: #1d1a16;
+      --muted: #6a6257;
+      --line: #d7c9b5;
+      --accent: #0f766e;
+      --accent-2: #b45309;
+      --user: #efe0c7;
+      --assistant: #dcefe8;
+      --shadow: 0 14px 40px rgba(63, 47, 25, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(180, 83, 9, 0.14), transparent 28rem),
+        radial-gradient(circle at bottom right, rgba(15, 118, 110, 0.16), transparent 28rem),
+        var(--bg);
+      color: var(--ink);
+      font: 16px/1.5 Georgia, "Times New Roman", serif;
+    }
+
+    .shell {
+      width: min(980px, calc(100% - 32px));
+      margin: 32px auto;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 18px;
+    }
+
+    .panel {
+      background: color-mix(in srgb, var(--panel) 88%, white);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .sidebar {
+      padding: 22px;
+      align-self: start;
+      position: sticky;
+      top: 20px;
+    }
+
+    .title {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.1;
+      letter-spacing: 0.02em;
+    }
+
+    .subtitle {
+      margin: 0 0 18px;
+      color: var(--muted);
+    }
+
+    .meta {
+      margin: 18px 0 0;
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(15, 118, 110, 0.08);
+      border: 1px solid rgba(15, 118, 110, 0.16);
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .meta strong {
+      color: var(--ink);
+    }
+
+    .commands {
+      margin: 18px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    .commands li + li {
+      margin-top: 6px;
+    }
+
+    .main {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-height: 80vh;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 4px 4px 0;
+    }
+
+    .status {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 16px;
+      background: var(--ink);
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+      transition: transform .15s ease, opacity .15s ease, background .15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    button.secondary {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: wait;
+      transform: none;
+    }
+
+    .transcript {
+      flex: 1;
+      overflow: auto;
+      padding: 8px 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .bubble {
+      max-width: min(760px, 92%);
+      border-radius: 18px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      white-space: pre-wrap;
+      word-break: break-word;
+      animation: fadeUp .18s ease;
+    }
+
+    .bubble.user {
+      align-self: flex-end;
+      background: var(--user);
+    }
+
+    .bubble.assistant {
+      align-self: flex-start;
+      background: var(--assistant);
+    }
+
+    .bubble.system {
+      align-self: center;
+      background: rgba(255,255,255,0.66);
+      color: var(--muted);
+    }
+
+    .label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .composer {
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 108px;
+      max-height: 240px;
+      resize: vertical;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.84);
+      padding: 14px 16px;
+      font: inherit;
+      color: var(--ink);
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
+    }
+
+    .hint {
+      margin: 8px 2px 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .accent {
+      color: var(--accent-2);
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 860px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+      }
+
+      .composer {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="panel sidebar">
+      <h1 class="title">ic_agent</h1>
+      <p class="subtitle">A lightweight tool agent running entirely on <span class="accent">iclang</span>.</p>
+      <div class="meta">
+        <div><strong>Mode</strong>: HTTP tool agent</div>
+        <div><strong>API</strong>: <code>POST /chat</code></div>
+        <div><strong>History</strong>: browser session</div>
+      </div>
+      <ol class="commands">
+        <li><code>help</code></li>
+        <li><code>read ./examples/hello.is</code></li>
+        <li><code>list ./ic_agent</code></li>
+        <li><code>run go :: version</code></li>
+        <li><code>watch ping :: 127.0.0.1 | -n | 2</code></li>
+      </ol>
+    </aside>
+
+    <main class="panel main">
+      <div class="header">
+        <div class="status" id="status">Checking service…</div>
+        <div class="controls">
+          <button class="secondary" id="helpBtn" type="button">Insert Help</button>
+          <button class="secondary" id="clearBtn" type="button">Clear History</button>
+        </div>
+      </div>
+
+      <section class="transcript" id="transcript" aria-live="polite"></section>
+
+      <form class="composer" id="composer">
+        <div>
+          <textarea id="message" placeholder="Ask for a tool action. Example: read ./examples/hello.is"></textarea>
+          <div class="hint">Enter to send, Shift+Enter for newline.</div>
+        </div>
+        <button id="sendBtn" type="submit">Send</button>
+      </form>
+    </main>
+  </div>
+
+  <script>
+    const transcript = document.getElementById("transcript");
+    const composer = document.getElementById("composer");
+    const messageInput = document.getElementById("message");
+    const sendBtn = document.getElementById("sendBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const helpBtn = document.getElementById("helpBtn");
+    const statusEl = document.getElementById("status");
+    const historyKey = "ic_agent_history_v1";
+
+    let history = [];
+
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem(historyKey);
+        if (!raw) {
+          history = [];
+          return;
+        }
+        history = JSON.parse(raw);
+        if (!Array.isArray(history)) {
+          history = [];
+        }
+      } catch {
+        history = [];
+      }
+    }
+
+    function saveHistory() {
+      localStorage.setItem(historyKey, JSON.stringify(history));
+    }
+
+    function addBubble(role, content, label) {
+      const bubble = document.createElement("article");
+      bubble.className = `bubble ${role}`;
+
+      const title = document.createElement("span");
+      title.className = "label";
+      title.textContent = label;
+
+      const body = document.createElement("div");
+      body.textContent = content;
+
+      bubble.appendChild(title);
+      bubble.appendChild(body);
+      transcript.appendChild(bubble);
+      transcript.scrollTop = transcript.scrollHeight;
+    }
+
+    function renderTranscript() {
+      transcript.innerHTML = "";
+      if (history.length === 0) {
+        addBubble("system", "No conversation yet. Start with help or a direct tool command.", "Ready");
+        return;
+      }
+
+      for (const item of history) {
+        const label = item.role === "user" ? "User" : "Agent";
+        addBubble(item.role === "user" ? "user" : "assistant", item.content, label);
+      }
+    }
+
+    async function refreshHealth() {
+      try {
+        const res = await fetch("/health");
+        const payload = await res.json();
+        statusEl.textContent = `Service ready: ${payload.service} at ${payload.time}`;
+      } catch {
+        statusEl.textContent = "Service unavailable";
+      }
+    }
+
+    async function sendMessage(message) {
+      sendBtn.disabled = true;
+      statusEl.textContent = "Running tool agent…";
+
+      try {
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message,
+            history
+          })
+        });
+
+        const payload = await res.json();
+        if (!res.ok || payload.ok === false && payload.answer == null) {
+          throw new Error(payload.detail || payload.error || "request failed");
+        }
+
+        history = Array.isArray(payload.history) ? payload.history : history;
+        saveHistory();
+        renderTranscript();
+        statusEl.textContent = `Last tool: ${payload.tool}`;
+      } catch (error) {
+        addBubble("system", String(error.message || error), "Error");
+        statusEl.textContent = "Request failed";
+      } finally {
+        sendBtn.disabled = false;
+        messageInput.focus();
+      }
+    }
+
+    composer.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const message = messageInput.value.trim();
+      if (!message) {
+        return;
+      }
+      messageInput.value = "";
+      await sendMessage(message);
+    });
+
+    messageInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        composer.requestSubmit();
+      }
+    });
+
+    clearBtn.addEventListener("click", () => {
+      history = [];
+      saveHistory();
+      renderTranscript();
+      statusEl.textContent = "History cleared";
+    });
+
+    helpBtn.addEventListener("click", () => {
+      messageInput.value = "help";
+      messageInput.focus();
+    });
+
+    loadHistory();
+    renderTranscript();
+    refreshHealth();
+    messageInput.focus();
+  </script>
+</body>
+</html>
