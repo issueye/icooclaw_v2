@@ -1,0 +1,21 @@
+go_bin = exec.look_path("go")
+print("go:", go_bin)
+
+version = exec.command("go", ["version"])
+print("ok:", version.ok)
+print("stdout:", version.stdout)
+
+missing = exec.command("iclang-definitely-missing-binary", [])
+print("missing ok:", missing.ok)
+print("missing stderr:", missing.stderr)
+
+proc = exec.start("ping", ["127.0.0.1", "-n", "4"])
+while true {
+    line = proc.read()
+    if line == null {
+        break
+    }
+    print("[" + line.stream + "] " + line.text)
+}
+
+print(proc.wait())

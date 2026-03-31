@@ -27,6 +27,7 @@ func libraryBuiltins() map[string]object.Object {
 		"log":       newLogLib(),
 		"time":      newTimeLib(),
 		"os":        newOSLib(),
+		"exec":      newExecLib(),
 		"path":      newPathLib(),
 		"crypto":    newCryptoLib(),
 		"websocket": newWebSocketLib(),

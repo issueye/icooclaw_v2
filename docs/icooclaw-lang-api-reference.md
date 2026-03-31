@@ -192,6 +192,7 @@ export add
 - `log`
 - `time`
 - `os`
+- `exec`
 - `path`
 - `crypto`
 - `websocket`
@@ -303,6 +304,72 @@ os.script_path()       # "demo.is"
 | `path.ext` | `path.ext(path_value)` |
 | `path.dir` | `path.dir(path_value)` |
 | `path.clean` | `path.clean(path_value)` |
+
+### 6.5 exec
+
+| API | 签名 |
+| --- | --- |
+| `exec.look_path` | `exec.look_path(name)` |
+| `exec.command` | `exec.command(name)` / `exec.command(name, [args])` |
+| `exec.command_in` | `exec.command_in(dir, name)` / `exec.command_in(dir, name, [args])` |
+| `exec.start` | `exec.start(name)` / `exec.start(name, [args])` |
+| `exec.start_in` | `exec.start_in(dir, name)` / `exec.start_in(dir, name, [args])` |
+
+`exec.command(...)` / `exec.command_in(...)` 返回结构：
+
+```is
+{
+    "ok": true,
+    "code": 0,
+    "stdout": "go version go1.24.0 windows/amd64\n",
+    "stderr": "",
+    "output": "go version go1.24.0 windows/amd64\n",
+    "command": "go version",
+    "dir": "E:\\code\\issueye\\icooclaw_v2"
+}
+```
+
+约定：
+
+- 参数数组必须是 `ARRAY<STRING>`
+- 非零退出码不会抛解释器错误，而是返回 `ok=false` 和实际 `code`
+- 如果命令根本无法启动，例如二进制不存在，则返回 `ok=false`、`code=-1`
+- `exec.look_path(name)` 找不到时返回 `null`
+
+`exec.start(...)` / `exec.start_in(...)` 返回进程对象，支持：
+
+| API | 签名 |
+| --- | --- |
+| `proc.read` | `proc.read()` |
+| `proc.wait` | `proc.wait()` |
+| `proc.kill` | `proc.kill()` |
+| `proc.is_running` | `proc.is_running()` |
+| `proc.pid` | `proc.pid()` |
+| `proc.stdout` | `proc.stdout()` |
+| `proc.stderr` | `proc.stderr()` |
+
+`proc.read()` 会阻塞直到读到下一行输出，返回：
+
+```is
+{
+    "stream": "stdout",
+    "text": "Reply from 127.0.0.1: bytes=32 time<1ms TTL=128"
+}
+```
+
+进程输出示例：
+
+```is
+proc = exec.start("ping", ["127.0.0.1", "-n", "4"])
+while true {
+    line = proc.read()
+    if line == null {
+        break
+    }
+    print("[" + line.stream + "] " + line.text)
+}
+print(proc.wait())
+```
 
 ### 6.6 crypto
 

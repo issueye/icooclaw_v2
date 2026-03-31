@@ -240,6 +240,16 @@ os.has_flag(name)
 os.flag(name)
 os.flag_or(name, fallback)
 os.script_path()
+
+exec.look_path(name)
+exec.command(name)
+exec.command(name, [args])
+exec.command_in(dir, name)
+exec.command_in(dir, name, [args])
+exec.start(name)
+exec.start(name, [args])
+exec.start_in(dir, name)
+exec.start_in(dir, name, [args])
 ```
 
 ### 5.5 path

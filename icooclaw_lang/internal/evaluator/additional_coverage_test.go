@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -487,6 +488,87 @@ last = items[2]
 	}
 	if got := testStringValue(t, env, "last"); got != "4" {
 		t.Fatalf("expected last=4, got %s", got)
+	}
+}
+
+func TestExecLibraryCommandAndLookPath(t *testing.T) {
+	rootDir := filepath.ToSlash(filepath.Join("..", ".."))
+
+	env, result := evalSource(t, fmt.Sprintf(`
+go_bin = exec.look_path("go")
+version = exec.command("go", ["version"])
+version_in = exec.command_in("%s", "go", ["version"])
+missing = exec.command("iclang-definitely-missing-binary", [])
+`, rootDir))
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	if got := testStringValue(t, env, "go_bin"); got == "null" || got == "" {
+		t.Fatalf("expected go binary path, got %s", got)
+	}
+
+	version := testHashValue(t, env, "version")
+	if version.Pairs["ok"].Value.Inspect() != "true" {
+		t.Fatalf("expected version.ok=true, got %s", version.Inspect())
+	}
+	if !strings.Contains(version.Pairs["stdout"].Value.Inspect(), "go version") {
+		t.Fatalf("expected stdout to contain go version, got %s", version.Pairs["stdout"].Value.Inspect())
+	}
+
+	versionIn := testHashValue(t, env, "version_in")
+	if versionIn.Pairs["ok"].Value.Inspect() != "true" {
+		t.Fatalf("expected version_in.ok=true, got %s", versionIn.Inspect())
+	}
+	if got := versionIn.Pairs["dir"].Value.Inspect(); got == "" {
+		t.Fatalf("expected command_in dir to be non-empty, got %q", got)
+	}
+
+	missing := testHashValue(t, env, "missing")
+	if missing.Pairs["ok"].Value.Inspect() != "false" {
+		t.Fatalf("expected missing.ok=false, got %s", missing.Inspect())
+	}
+	if missing.Pairs["code"].Value.Inspect() != "-1" {
+		t.Fatalf("expected missing.code=-1, got %s", missing.Pairs["code"].Value.Inspect())
+	}
+}
+
+func TestExecLibraryStartAndStreamRead(t *testing.T) {
+	var script string
+	if runtime.GOOS == "windows" {
+		script = `
+proc = exec.start("ping", ["127.0.0.1", "-n", "2"])
+line1 = proc.read()
+line2 = proc.read()
+result = proc.wait()
+`
+	} else {
+		script = `
+proc = exec.start("ping", ["-c", "2", "127.0.0.1"])
+line1 = proc.read()
+line2 = proc.read()
+result = proc.wait()
+`
+	}
+
+	env, result := evalSource(t, script)
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	line1 := testHashValue(t, env, "line1")
+	line2 := testHashValue(t, env, "line2")
+	if line1.Pairs["stream"].Value.Inspect() == "" || line2.Pairs["stream"].Value.Inspect() == "" {
+		t.Fatalf("expected streamed lines to include stream name, got %s / %s", line1.Inspect(), line2.Inspect())
+	}
+	if line1.Pairs["text"].Value.Inspect() == "" && line2.Pairs["text"].Value.Inspect() == "" {
+		t.Fatalf("expected at least one streamed line to include text, got %s / %s", line1.Inspect(), line2.Inspect())
+	}
+
+	waitResult := testHashValue(t, env, "result")
+	if waitResult.Pairs["code"].Value.Inspect() != "0" {
+		t.Fatalf("expected wait code=0, got %s", waitResult.Inspect())
 	}
 }
 
