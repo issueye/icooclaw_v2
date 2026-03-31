@@ -177,10 +177,8 @@ func evalMatchStmt(node *ast.MatchStmt, env *object.Environment) object.Object {
 			}
 
 			caseEnv := object.NewEnclosedEnvironment(env)
-			for name, value := range bindings {
-				if assigned := caseEnv.DefineLocal(name, value); object.IsError(assigned) {
-					return assigned
-				}
+			if assigned := caseEnv.DefineLocals(bindings); object.IsError(assigned) {
+				return assigned
 			}
 
 			if c.Guard != nil {

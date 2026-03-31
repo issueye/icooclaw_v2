@@ -13,21 +13,18 @@ func evalMethodCallExpr(node *ast.MethodCallExpr, env *object.Environment) objec
 		return obj
 	}
 
-	args := evalArgs(node.Arguments, env)
-	if len(args) == 1 && object.IsError(args[0]) {
-		return args[0]
-	}
-
-	switch o := obj.(type) {
-	case *object.String:
-		return evalStringMethod(o, node.Method.Value, args, node.Token.Line)
-	case *object.Array:
-		return evalArrayMethod(o, node.Method.Value, args, node.Token.Line)
-	case *object.Hash:
-		return evalHashMethod(o, node.Method.Value, args, node.Token.Line, env)
-	default:
-		return object.NewError(node.Token.Line, "no method '%s' on type %s", node.Method.Value, o.Type())
-	}
+	return withCallArgs(node.Arguments, env, func(args []object.Object) object.Object {
+		switch o := obj.(type) {
+		case *object.String:
+			return evalStringMethod(o, node.Method.Value, args, node.Token.Line)
+		case *object.Array:
+			return evalArrayMethod(o, node.Method.Value, args, node.Token.Line)
+		case *object.Hash:
+			return evalHashMethod(o, node.Method.Value, args, node.Token.Line, env)
+		default:
+			return object.NewError(node.Token.Line, "no method '%s' on type %s", node.Method.Value, o.Type())
+		}
+	})
 }
 
 func evalHashMethod(hash *object.Hash, method string, args []object.Object, line int, env *object.Environment) object.Object {

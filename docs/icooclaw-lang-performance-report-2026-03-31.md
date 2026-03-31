@@ -411,3 +411,99 @@ go test ./internal/evaluator -run ^$ -bench 'BenchmarkEvalProgram$|BenchmarkEval
 1. 作用域对象复用策略
 2. `Environment.Set` 的内部结构优化
 3. 临时缓冲池化
+
+## 12. 第三轮优化尝试
+
+第二轮之后，没有继续碰“作用域对象复用”，因为这条线虽然潜在收益更高，但对闭包、递归和模块执行语义的回归风险也更高。  
+因此第三轮选择了更保守的两项改动：
+
+- `NewEnclosedEnvironment()` / `NewDetachedEnvironment()` 的 `store` 改为小容量预分配
+- 为 `evalCallExpr` / `evalMethodCallExpr` 引入只在调用期内使用的临时参数切片池
+
+设计边界：
+
+- 只池化“立即调用、立即释放”的参数列表
+- `ArrayLiteral` 仍然保留普通 `evalArgs` 路径，避免把会逃逸到结果对象里的切片放回池中
+- 不直接池化运行时值对象，也不复用作用域对象
+
+### 12.1 第三轮结果
+
+复测命令：
+
+```powershell
+go test ./internal/evaluator -run ^$ -bench BenchmarkEvalProgram$ -benchmem -count 3
+go test ./internal/evaluator -run ^$ -bench BenchmarkEvalFunctionCalls$ -benchmem -count 3
+go test ./internal/evaluator -run ^$ -bench BenchmarkEvalModuleImportWarm$ -benchmem -count 3
+```
+
+结果：
+
+| Benchmark | 典型耗时 | 内存 | 分配次数 |
+| --- | ---: | ---: | ---: |
+| `BenchmarkEvalProgram` | `396-400 us/op` | `469491-469502 B/op` | `5037 allocs/op` |
+| `BenchmarkEvalFunctionCalls` | `378-381 us/op` | `455651-455656 B/op` | `5018 allocs/op` |
+| `BenchmarkEvalModuleImportWarm` | `2.78-2.79 us/op` | `1993 B/op` | `21 allocs/op` |
+
+### 12.2 结果解释
+
+- `BenchmarkEvalProgram` 基本与第一轮优化后的水平持平，说明参数切片池化对“非调用主导型”脚本帮助有限
+- `BenchmarkEvalFunctionCalls` 继续改善，且 `B/op` / `allocs/op` 进一步下降，说明这轮优化主要命中了高频调用路径
+- `BenchmarkEvalModuleImportWarm` 也有小幅改善，但仍然不是主要瓶颈
+
+因此第三轮结论是：
+
+- **临时缓冲池化有效，但收益集中在 call-heavy workload**
+- 它可以作为安全的局部优化手段
+- 但如果要继续拿到量级更大的整体收益，下一优先级仍然是：
+  - `Environment.Set`
+  - `NewEnclosedEnvironment`
+  - 更谨慎的作用域创建/复用途径设计
+
+## 13. 第四轮优化尝试
+
+第三轮之后，继续沿着“减少运行时锁与重复局部写入成本”的方向做了一次更细化的尝试：
+
+- 函数参数绑定从“每个参数一次 `DefineLocal`”改为单次加锁的批量绑定
+- `match` 命中的绑定写入也改为一次性批量落入新作用域
+
+实现目标不是减少对象数量，而是验证“减少锁次数 / 减少重复局部写入调用”是否仍有可见收益。
+
+### 13.1 第四轮结果
+
+复测命令：
+
+```powershell
+go test ./internal/evaluator -run ^$ -bench BenchmarkEvalProgram$ -benchmem -count 3
+go test ./internal/evaluator -run ^$ -bench BenchmarkEvalFunctionCalls$ -benchmem -count 3
+go test ./internal/evaluator -run ^$ -bench BenchmarkEvalModuleImportWarm$ -benchmem -count 3
+```
+
+结果：
+
+| Benchmark | 典型耗时 | 内存 | 分配次数 |
+| --- | ---: | ---: | ---: |
+| `BenchmarkEvalProgram` | `392-396 us/op` | `469490-469499 B/op` | `5037 allocs/op` |
+| `BenchmarkEvalFunctionCalls` | `378-383 us/op` | `455651-455658 B/op` | `5018 allocs/op` |
+| `BenchmarkEvalModuleImportWarm` | `2.734-2.739 us/op` | `1993 B/op` | `21 allocs/op` |
+
+### 13.2 结果解释
+
+- `BenchmarkEvalProgram` 有轻微 CPU 改善，但非常有限
+- `BenchmarkEvalFunctionCalls` 与第三轮基本持平
+- `B/op` 和 `allocs/op` 完全没有继续下降
+
+这说明：
+
+- 仅仅减少“同一作用域内多次局部写入的锁次数”，对当前 evaluator 已经不是决定性因素
+- 剩余的主要成本仍然来自：
+  - 作用域对象本身的创建
+  - `store` 的 map 写入
+  - 解释执行过程中大量短生命周期对象
+
+因此第四轮的结论比前几轮更明确：
+
+- **局部微优化仍能带来小幅 CPU 改善**
+- 但要再拿到明显收益，必须进入更高风险但更高收益的区域，例如：
+  - 设计受控的作用域复用途径
+  - 调整 `Environment` 的内部表示
+  - 针对循环/调用热点做更专门的轻量作用域模型

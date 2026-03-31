@@ -1,5 +1,9 @@
 package object
 
+import "github.com/issueye/icooclaw_lang/internal/ast"
+
+const defaultLocalStoreCapacity = 4
+
 type Environment struct {
 	store      map[string]Object
 	outer      *Environment
@@ -19,7 +23,7 @@ func NewEnvironment() *Environment {
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
 	return &Environment{
-		store:      make(map[string]Object),
+		store:      make(map[string]Object, defaultLocalStoreCapacity),
 		outer:      outer,
 		cliArgs:    outer.cliArgs,
 		scriptPath: outer.scriptPath,
@@ -29,7 +33,7 @@ func NewEnclosedEnvironment(outer *Environment) *Environment {
 
 func NewDetachedEnvironment(proto *Environment) *Environment {
 	return &Environment{
-		store:      make(map[string]Object),
+		store:      make(map[string]Object, defaultLocalStoreCapacity),
 		cliArgs:    proto.cliArgs,
 		scriptPath: proto.scriptPath,
 		runtime:    proto.runtime,
@@ -79,6 +83,37 @@ func (e *Environment) DefineLocal(name string, val Object) Object {
 	}
 	e.store[name] = val
 	return val
+}
+
+func (e *Environment) DefineLocals(bindings map[string]Object) Object {
+	e.runtime.mu.Lock()
+	defer e.runtime.mu.Unlock()
+
+	for name, val := range bindings {
+		if e.consts != nil && e.consts[name] {
+			return NewError(0, "cannot reassign to constant '%s'", name)
+		}
+		e.store[name] = val
+	}
+	return &Null{}
+}
+
+func (e *Environment) DefineFunctionParams(params []*ast.Identifier, args []Object, line int) Object {
+	if len(args) != len(params) {
+		return NewError(line, "wrong number of arguments: want=%d, got=%d", len(params), len(args))
+	}
+
+	e.runtime.mu.Lock()
+	defer e.runtime.mu.Unlock()
+
+	for i, param := range params {
+		name := param.Value
+		if e.consts != nil && e.consts[name] {
+			return NewError(0, "cannot reassign to constant '%s'", name)
+		}
+		e.store[name] = args[i]
+	}
+	return &Null{}
 }
 
 func (e *Environment) findVar(name string) *Environment {

@@ -1,9 +1,18 @@
 package evaluator
 
 import (
+	"sync"
+
 	"github.com/issueye/icooclaw_lang/internal/ast"
 	"github.com/issueye/icooclaw_lang/internal/object"
 )
+
+var callArgsPool = sync.Pool{
+	New: func() any {
+		buf := make([]object.Object, 0, 4)
+		return &buf
+	},
+}
 
 func evalPrefixExpr(node *ast.PrefixExpr, env *object.Environment) object.Object {
 	right := Eval(node.Right, env)
@@ -402,24 +411,15 @@ func evalCallExpr(node *ast.CallExpr, env *object.Environment) object.Object {
 		return fn
 	}
 
-	args := evalArgs(node.Arguments, env)
-	if len(args) == 1 && object.IsError(args[0]) {
-		return args[0]
-	}
-
-	return callRuntimeObject(env, fn, args, node.Token.Line)
+	return withCallArgs(node.Arguments, env, func(args []object.Object) object.Object {
+		return callRuntimeObject(env, fn, args, node.Token.Line)
+	})
 }
 
 func callFunction(fn *object.Function, args []object.Object, line int) object.Object {
 	callEnv := object.NewEnclosedEnvironment(fn.Env)
-	if len(args) != len(fn.Params) {
-		return object.NewError(line, "wrong number of arguments: want=%d, got=%d",
-			len(fn.Params), len(args))
-	}
-	for i, param := range fn.Params {
-		if assigned := callEnv.DefineLocal(param.Value, args[i]); object.IsError(assigned) {
-			return assigned
-		}
+	if assigned := callEnv.DefineFunctionParams(fn.Params, args, line); object.IsError(assigned) {
+		return assigned
 	}
 	result := evalBlockStmt(fn.Body, callEnv)
 	if ret, ok := result.(*object.Return); ok {
@@ -438,6 +438,33 @@ func evalArgs(args []ast.Expr, env *object.Environment) []object.Object {
 		result = append(result, evaluated)
 	}
 	return result
+}
+
+func withCallArgs(args []ast.Expr, env *object.Environment, fn func([]object.Object) object.Object) object.Object {
+	if len(args) == 0 {
+		return fn(nil)
+	}
+
+	bufPtr := callArgsPool.Get().(*[]object.Object)
+	values := (*bufPtr)[:0]
+	if cap(values) < len(args) {
+		values = make([]object.Object, 0, len(args))
+	}
+	defer func() {
+		clear(values)
+		*bufPtr = values[:0]
+		callArgsPool.Put(bufPtr)
+	}()
+
+	for _, arg := range args {
+		evaluated := Eval(arg, env)
+		if object.IsError(evaluated) {
+			return evaluated
+		}
+		values = append(values, evaluated)
+	}
+
+	return fn(values)
 }
 
 func evalArrayLiteral(node *ast.ArrayLiteral, env *object.Environment) object.Object {
