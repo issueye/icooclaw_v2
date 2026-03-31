@@ -6,7 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/issueye/icooclaw_lang/internal/ast"
+	"github.com/issueye/icooclaw_lang/internal/lexer"
 	"github.com/issueye/icooclaw_lang/internal/object"
+	"github.com/issueye/icooclaw_lang/internal/parser"
 )
 
 func TestCollectionsStringMethodsAndConversions(t *testing.T) {
@@ -259,11 +262,22 @@ after_running = server.is_running()
 }
 
 func TestOSArgsAndCryptoDecodeError(t *testing.T) {
-	env, result := evalSource(t, `
+	env := object.NewEnvironment()
+	env.SetCLIContext("examples/demo.is", []string{"input.txt", "--mode=prod", "--verbose", "-p", "8080"})
+	result := Eval(parseProgramForTest(t, `
 hostname = os.hostname()
 temp_dir = os.temp_dir()
 argv = os.args()
-`)
+first_arg = os.arg(0)
+missing_arg = os.arg(9)
+mode = os.flag("mode")
+port = os.flag("p")
+verbose = os.has_flag("verbose")
+dry_run = os.has_flag("dry-run")
+fallback = os.flag_or("config", "default.toml")
+script_path = os.script_path()
+`), env)
+	env.Wait()
 
 	if object.IsError(result) {
 		t.Fatalf("unexpected eval error: %s", result.Inspect())
@@ -276,8 +290,32 @@ argv = os.args()
 		t.Fatal("expected temp_dir to be non-empty")
 	}
 	argv := testArrayValue(t, env, "argv")
-	if len(argv.Elements) < 1 {
-		t.Fatalf("expected os.args() to contain at least one argument, got %d", len(argv.Elements))
+	if len(argv.Elements) != 5 {
+		t.Fatalf("expected os.args() to contain 5 script arguments, got %d", len(argv.Elements))
+	}
+	if got := testStringValue(t, env, "first_arg"); got != "input.txt" {
+		t.Fatalf("expected first_arg=input.txt, got %s", got)
+	}
+	if got := testStringValue(t, env, "missing_arg"); got != "null" {
+		t.Fatalf("expected missing_arg=null, got %s", got)
+	}
+	if got := testStringValue(t, env, "mode"); got != "prod" {
+		t.Fatalf("expected mode=prod, got %s", got)
+	}
+	if got := testStringValue(t, env, "port"); got != "8080" {
+		t.Fatalf("expected port=8080, got %s", got)
+	}
+	if got := testStringValue(t, env, "verbose"); got != "true" {
+		t.Fatalf("expected verbose=true, got %s", got)
+	}
+	if got := testStringValue(t, env, "dry_run"); got != "false" {
+		t.Fatalf("expected dry_run=false, got %s", got)
+	}
+	if got := testStringValue(t, env, "fallback"); got != "default.toml" {
+		t.Fatalf("expected fallback=default.toml, got %s", got)
+	}
+	if got := testStringValue(t, env, "script_path"); got != "examples/demo.is" {
+		t.Fatalf("expected script_path=examples/demo.is, got %s", got)
 	}
 
 	_, cryptoErr := evalSource(t, `
@@ -286,6 +324,18 @@ crypto.base_64_decode("%%%")
 	if !object.IsError(cryptoErr) {
 		t.Fatalf("expected invalid base64 to return error, got %#v", cryptoErr)
 	}
+}
+
+func parseProgramForTest(t *testing.T, input string) *ast.Program {
+	t.Helper()
+
+	l := lexer.New(input)
+	p := parser.New(l)
+	program := p.ParseProgram()
+	if errs := p.Errors(); len(errs) > 0 {
+		t.Fatalf("unexpected parser errors: %v", errs)
+	}
+	return program
 }
 
 func testStringValue(t *testing.T, env *object.Environment, name string) string {

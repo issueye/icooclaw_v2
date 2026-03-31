@@ -24,7 +24,7 @@ func main() {
 		fmt.Println("icooclaw script language v" + VERSION)
 		fmt.Println()
 		fmt.Println("Usage:")
-		fmt.Println("  iclang run <file.is>    Run a script file")
+		fmt.Println("  iclang run <file.is> [args...]    Run a script file")
 		fmt.Println("  iclang version          Show version")
 		fmt.Println("  iclang repl             Start interactive REPL")
 		os.Exit(0)
@@ -41,10 +41,10 @@ func main() {
 		args := runCmd.Args()
 		if len(args) == 0 {
 			fmt.Println("Error: no input file specified")
-			fmt.Println("Usage: iclang run <file.is>")
+			fmt.Println("Usage: iclang run <file.is> [args...]")
 			os.Exit(1)
 		}
-		runFile(args[0])
+		runFile(args[0], args[1:])
 	case "version":
 		fmt.Println("iclang v" + VERSION)
 	case "repl":
@@ -55,7 +55,7 @@ func main() {
 	}
 }
 
-func runFile(filename string) {
+func runFile(filename string, scriptArgs []string) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		fmt.Printf("Error: could not read file '%s': %s\n", filename, err)
@@ -74,6 +74,7 @@ func runFile(filename string) {
 	}
 
 	env := object.NewEnvironment()
+	env.SetCLIContext(filename, scriptArgs)
 	result := evaluator.Eval(program, env)
 	env.Wait()
 
@@ -91,6 +92,7 @@ func startRepl() {
 	fmt.Println()
 
 	env := object.NewEnvironment()
+	env.SetCLIContext("", nil)
 	reader := bufio.NewReader(os.Stdin)
 
 	for {

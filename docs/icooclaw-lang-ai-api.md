@@ -215,6 +215,11 @@ os.pid()
 os.hostname()
 os.temp_dir()
 os.args()
+os.arg(index)
+os.has_flag(name)
+os.flag(name)
+os.flag_or(name, fallback)
+os.script_path()
 ```
 
 ### 5.5 path

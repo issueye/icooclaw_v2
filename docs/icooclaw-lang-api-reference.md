@@ -12,7 +12,7 @@
 CLI 用法：
 
 ```bash
-iclang run <file.is>
+iclang run <file.is> [args...]
 iclang repl
 iclang version
 ```
@@ -245,6 +245,27 @@ result = match payload {
 | `os.hostname` | `os.hostname()` |
 | `os.temp_dir` | `os.temp_dir()` |
 | `os.args` | `os.args()` |
+| `os.arg` | `os.arg(index)` |
+| `os.has_flag` | `os.has_flag(name)` |
+| `os.flag` | `os.flag(name)` |
+| `os.flag_or` | `os.flag_or(name, fallback)` |
+| `os.script_path` | `os.script_path()` |
+
+`os.args()` 返回脚本收到的原始命令行参数，不包含 `iclang`、`run` 和脚本文件路径本身。例如：
+
+```bash
+iclang run demo.is input.txt --mode=prod --verbose
+```
+
+脚本内：
+
+```is
+os.args()              # ["input.txt", "--mode=prod", "--verbose"]
+os.arg(0)              # "input.txt"
+os.flag("mode")        # "prod"
+os.has_flag("verbose") # true
+os.script_path()       # "demo.is"
+```
 
 ### 6.5 path
 

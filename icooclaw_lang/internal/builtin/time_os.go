@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"os"
+	"strings"
 	"time"
 
 	"github.com/issueye/icooclaw_lang/internal/object"
@@ -120,11 +121,78 @@ func newOSLib() *object.Hash {
 			if len(args) != 0 {
 				return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
 			}
-			values := make([]object.Object, 0, len(os.Args)-1)
-			for _, arg := range os.Args[1:] {
-				values = append(values, &object.String{Value: arg})
+			return arrayOfStrings(env.CLIArgs())
+		}),
+		"arg": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
 			}
-			return &object.Array{Elements: values}
+			index, errObj := integerArg(args[0], "argument to `arg` must be INTEGER, got %s")
+			if errObj != nil {
+				return errObj
+			}
+
+			values := env.CLIArgs()
+			if index < 0 || int(index) >= len(values) {
+				return &object.Null{}
+			}
+			return &object.String{Value: values[index]}
+		}),
+		"has_flag": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+			}
+			name, errObj := stringArg(args[0], "argument to `has_flag` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+
+			_, ok := lookupCLIFlag(env.CLIArgs(), name)
+			return boolObject(ok)
+		}),
+		"flag": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+			}
+			name, errObj := stringArg(args[0], "argument to `flag` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+
+			value, ok := lookupCLIFlag(env.CLIArgs(), name)
+			if !ok {
+				return &object.Null{}
+			}
+			return &object.String{Value: value}
+		}),
+		"flag_or": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=2", len(args))
+			}
+			name, errObj := stringArg(args[0], "first argument to `flag_or` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+			fallback, errObj := stringArg(args[1], "second argument to `flag_or` must be STRING, got %s")
+			if errObj != nil {
+				return errObj
+			}
+
+			value, ok := lookupCLIFlag(env.CLIArgs(), name)
+			if !ok {
+				return &object.String{Value: fallback}
+			}
+			return &object.String{Value: value}
+		}),
+		"script_path": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 0 {
+				return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
+			}
+			scriptPath := env.ScriptPath()
+			if scriptPath == "" {
+				return &object.Null{}
+			}
+			return &object.String{Value: scriptPath}
 		}),
 	})
 }
@@ -145,4 +213,70 @@ func timeObject(now time.Time) *object.Hash {
 		"weekday":   &object.String{Value: now.Weekday().String()},
 		"timestamp": &object.String{Value: now.Format("2006-01-02 15:04:05")},
 	})
+}
+
+func lookupCLIFlag(args []string, name string) (string, bool) {
+	key := normalizeCLIFlagName(name)
+	if key == "" {
+		return "", false
+	}
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			break
+		}
+
+		if !strings.HasPrefix(arg, "-") || arg == "-" {
+			continue
+		}
+
+		raw := strings.TrimLeft(arg, "-")
+		if raw == "" {
+			continue
+		}
+
+		if parts := strings.SplitN(raw, "=", 2); len(parts) == 2 {
+			if parts[0] == key {
+				return parts[1], true
+			}
+			continue
+		}
+
+		if raw != key {
+			continue
+		}
+
+		if i+1 < len(args) && isCLIFlagValue(args[i+1]) {
+			return args[i+1], true
+		}
+		return "true", true
+	}
+
+	return "", false
+}
+
+func normalizeCLIFlagName(name string) string {
+	return strings.TrimLeft(strings.TrimSpace(name), "-")
+}
+
+func isCLIFlagValue(value string) bool {
+	if value == "" {
+		return true
+	}
+	if value == "--" {
+		return false
+	}
+	if strings.HasPrefix(value, "-") {
+		if len(value) == 1 {
+			return false
+		}
+		switch value[1] {
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.':
+			return true
+		default:
+			return false
+		}
+	}
+	return true
 }

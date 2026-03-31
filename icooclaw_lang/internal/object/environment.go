@@ -68,6 +68,28 @@ func (e *Environment) Wait() {
 	e.runtime.wg.Wait()
 }
 
+func (e *Environment) SetCLIContext(scriptPath string, args []string) {
+	e.runtime.mu.Lock()
+	defer e.runtime.mu.Unlock()
+
+	e.runtime.scriptPath = scriptPath
+	e.runtime.cliArgs = append([]string(nil), args...)
+}
+
+func (e *Environment) CLIArgs() []string {
+	e.runtime.mu.RLock()
+	defer e.runtime.mu.RUnlock()
+
+	return append([]string(nil), e.runtime.cliArgs...)
+}
+
+func (e *Environment) ScriptPath() string {
+	e.runtime.mu.RLock()
+	defer e.runtime.mu.RUnlock()
+
+	return e.runtime.scriptPath
+}
+
 func (e *Environment) Call(fn Object, args []Object, line int) Object {
 	e.runtime.mu.RLock()
 	caller := e.runtime.caller

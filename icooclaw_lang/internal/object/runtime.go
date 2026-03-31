@@ -5,9 +5,11 @@ import "sync"
 type Caller func(env *Environment, fn Object, args []Object, line int) Object
 
 type Runtime struct {
-	mu     sync.RWMutex
-	wg     sync.WaitGroup
-	caller Caller
+	mu         sync.RWMutex
+	wg         sync.WaitGroup
+	caller     Caller
+	cliArgs    []string
+	scriptPath string
 }
 
 var (

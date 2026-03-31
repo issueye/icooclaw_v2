@@ -1,0 +1,7 @@
+# command line demo
+
+print("script = " + str(os.script_path()))
+print("args = " + str(os.args()))
+print("first = " + str(os.arg(0)))
+print("mode = " + str(os.flag("mode")))
+print("verbose = " + str(os.has_flag("verbose")))
