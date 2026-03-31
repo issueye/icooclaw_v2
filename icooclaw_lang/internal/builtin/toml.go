@@ -19,8 +19,8 @@ func newTOMLLib() *object.Hash {
 }
 
 func tomlParse(env *object.Environment, args ...object.Object) object.Object {
-	if len(args) != 1 {
-		return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+	if len(args) != 1 && len(args) != 2 {
+		return object.NewError(0, "wrong number of arguments. got=%d, want=1 or 2", len(args))
 	}
 	input, errObj := stringArg(args[0], "argument to `parse` must be STRING, got %s")
 	if errObj != nil {
@@ -31,12 +31,16 @@ func tomlParse(env *object.Environment, args ...object.Object) object.Object {
 	if err != nil {
 		return object.NewError(0, "could not parse toml: %s", err.Error())
 	}
-	return objectFromNative(value)
+	var schema object.Object
+	if len(args) == 2 {
+		schema = args[1]
+	}
+	return objectFromNativeWithSchema(value, schema, "toml")
 }
 
 func tomlParseFile(env *object.Environment, args ...object.Object) object.Object {
-	if len(args) != 1 {
-		return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+	if len(args) != 1 && len(args) != 2 {
+		return object.NewError(0, "wrong number of arguments. got=%d, want=1 or 2", len(args))
 	}
 	path, errObj := stringArg(args[0], "argument to `parse_file` must be STRING, got %s")
 	if errObj != nil {
@@ -52,7 +56,11 @@ func tomlParseFile(env *object.Environment, args ...object.Object) object.Object
 	if err != nil {
 		return object.NewError(0, "could not parse toml file '%s': %s", path, err.Error())
 	}
-	return objectFromNative(value)
+	var schema object.Object
+	if len(args) == 2 {
+		schema = args[1]
+	}
+	return objectFromNativeWithSchema(value, schema, "toml")
 }
 
 func tomlStringify(env *object.Environment, args ...object.Object) object.Object {
@@ -60,7 +68,7 @@ func tomlStringify(env *object.Environment, args ...object.Object) object.Object
 		return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
 	}
 
-	root, ok := nativeValue(args[0]).(map[string]interface{})
+	root, ok := nativeValueForFormat(args[0], "toml").(map[string]interface{})
 	if !ok {
 		return object.NewError(0, "argument to `stringify` must be HASH, got %s", args[0].Type())
 	}

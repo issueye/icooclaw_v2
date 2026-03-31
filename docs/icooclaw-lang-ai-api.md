@@ -272,24 +272,103 @@ fs.abs(path)
 
 ```is
 json.parse(text)
+json.parse(text, schema)
 json.stringify(value)
 json.stringify_pretty(value)
+```
+
+字段标注约定：
+
+```is
+user = {
+    "__serde__": {
+        "name": {"json": "user_name"},
+        "password": {"json": "-"},
+        "age": {"json": "age,omitempty"}
+    },
+    "name": "icooclaw",
+    "password": "secret",
+    "age": 0
+}
+```
+
+- `stringify` 会按 `__serde__` 输出别名字段
+- `-` 表示跳过
+- `omitempty` 表示零值时省略
+- `parse(text, schema)` 用 schema 的 `__serde__` 把外部字段名回填成内部字段名
+
+反序列化示例：
+
+```is
+schema = {
+    "__serde__": {
+        "name": {"json": "user_name"},
+        "profile": {"json": "user_profile"}
+    },
+    "name": "",
+    "profile": {
+        "__serde__": {
+            "display_name": {"json": "displayName"}
+        },
+        "display_name": ""
+    }
+}
+
+user = json.parse(
+    "{\"user_name\":\"icooclaw\",\"user_profile\":{\"displayName\":\"agent\"}}",
+    schema
+)
+
+print(user.name)
+print(user.profile.display_name)
 ```
 
 ### 5.4 toml
 
 ```is
 toml.parse(text)
+toml.parse(text, schema)
 toml.parse_file(path)
+toml.parse_file(path, schema)
 toml.stringify(value)
+```
+
+示例：
+
+```is
+schema = {
+    "__serde__": {
+        "name": {"toml": "user_name"}
+    },
+    "name": ""
+}
+
+user = toml.parse("user_name = \"icooclaw\"", schema)
+print(user.name)
 ```
 
 ### 5.5 yaml
 
 ```is
 yaml.parse(text)
+yaml.parse(text, schema)
 yaml.parse_file(path)
+yaml.parse_file(path, schema)
 yaml.stringify(value)
+```
+
+示例：
+
+```is
+schema = {
+    "__serde__": {
+        "name": {"yaml": "user_name"}
+    },
+    "name": ""
+}
+
+user = yaml.parse("user_name: icooclaw\n", schema)
+print(user.name)
 ```
 
 ### 5.6 time

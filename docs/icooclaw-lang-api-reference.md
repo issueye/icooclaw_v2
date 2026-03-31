@@ -337,16 +337,38 @@ pool.wait()
 
 | API | 签名 | 返回值 |
 | --- | --- | --- |
-| `json.parse` | `json.parse(text)` | 运行时对象 |
+| `json.parse` | `json.parse(text)` / `json.parse(text, schema)` | 运行时对象 |
 | `json.stringify` | `json.stringify(value)` | `STRING` |
 | `json.stringify_pretty` | `json.stringify_pretty(value)` | `STRING` |
+
+字段标注约定：
+
+```is
+user = {
+    "__serde__": {
+        "name": {"json": "user_name"},
+        "password": {"json": "-"},
+        "age": {"json": "age,omitempty"}
+    },
+    "name": "icooclaw",
+    "password": "secret",
+    "age": 0
+}
+```
+
+说明：
+
+- `stringify` / `stringify_pretty` 会读取对象内的 `__serde__`
+- `-` 表示跳过该字段
+- `omitempty` 表示零值时省略该字段
+- 反序列化如果要按别名回填内部字段名，应传第二个参数 `schema`
 
 ### 6.4 yaml
 
 | API | 签名 | 返回值 |
 | --- | --- | --- |
-| `yaml.parse` | `yaml.parse(text)` | 运行时对象 |
-| `yaml.parse_file` | `yaml.parse_file(path)` | 运行时对象 |
+| `yaml.parse` | `yaml.parse(text)` / `yaml.parse(text, schema)` | 运行时对象 |
+| `yaml.parse_file` | `yaml.parse_file(path)` / `yaml.parse_file(path, schema)` | 运行时对象 |
 | `yaml.stringify` | `yaml.stringify(value)` | `STRING` |
 
 说明：
@@ -354,13 +376,43 @@ pool.wait()
 - YAML 解析结果会转换成运行时 `HASH` / `ARRAY` / 标量值
 - `yaml.parse_file` 适合读取项目配置或模板文件
 - `yaml.stringify` 适合把运行时对象导出为 YAML 文本
+- `yaml.stringify` 同样读取对象内的 `__serde__`
+- `yaml.parse` / `yaml.parse_file` 传入 `schema` 时，会按别名映射回内部字段名
+
+反序列化示例：
+
+```is
+schema = {
+    "__serde__": {
+        "name": {"yaml": "user_name"},
+        "profile": {"yaml": "user_profile"}
+    },
+    "name": "",
+    "profile": {
+        "__serde__": {
+            "display_name": {"yaml": "displayName"}
+        },
+        "display_name": ""
+    }
+}
+
+text = """
+user_name: icooclaw
+user_profile:
+  displayName: agent
+"""
+
+user = yaml.parse(text, schema)
+print(user.name)
+print(user.profile.display_name)
+```
 
 ### 6.5 toml
 
 | API | 签名 | 返回值 |
 | --- | --- | --- |
-| `toml.parse` | `toml.parse(text)` | 运行时对象 |
-| `toml.parse_file` | `toml.parse_file(path)` | 运行时对象 |
+| `toml.parse` | `toml.parse(text)` / `toml.parse(text, schema)` | 运行时对象 |
+| `toml.parse_file` | `toml.parse_file(path)` / `toml.parse_file(path, schema)` | 运行时对象 |
 | `toml.stringify` | `toml.stringify(value)` | `STRING` |
 
 说明：
@@ -368,6 +420,36 @@ pool.wait()
 - TOML 解析结果会转换成运行时 `HASH` / `ARRAY` / 标量值
 - `toml.parse_file` 适合读取简单项目清单或配置文件
 - `toml.stringify` 当前要求输入是 `HASH`
+- `toml.stringify` 同样读取对象内的 `__serde__`
+- `toml.parse` / `toml.parse_file` 传入 `schema` 时，会按别名映射回内部字段名
+
+反序列化示例：
+
+```is
+schema = {
+    "__serde__": {
+        "name": {"toml": "user_name"},
+        "profile": {"toml": "user_profile"}
+    },
+    "name": "",
+    "profile": {
+        "__serde__": {
+            "display_name": {"toml": "displayName"}
+        },
+        "display_name": ""
+    }
+}
+
+text = """
+user_name = "icooclaw"
+[user_profile]
+displayName = "agent"
+"""
+
+user = toml.parse(text, schema)
+print(user.name)
+print(user.profile.display_name)
+```
 
 ### 6.6 time
 

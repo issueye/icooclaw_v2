@@ -16,8 +16,8 @@ func newYAMLLib() *object.Hash {
 }
 
 func yamlParse(env *object.Environment, args ...object.Object) object.Object {
-	if len(args) != 1 {
-		return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+	if len(args) != 1 && len(args) != 2 {
+		return object.NewError(0, "wrong number of arguments. got=%d, want=1 or 2", len(args))
 	}
 	input, errObj := stringArg(args[0], "argument to `parse` must be STRING, got %s")
 	if errObj != nil {
@@ -28,12 +28,16 @@ func yamlParse(env *object.Environment, args ...object.Object) object.Object {
 	if err != nil {
 		return object.NewError(0, "could not parse yaml: %s", err.Error())
 	}
-	return objectFromNative(value)
+	var schema object.Object
+	if len(args) == 2 {
+		schema = args[1]
+	}
+	return objectFromNativeWithSchema(value, schema, "yaml")
 }
 
 func yamlParseFile(env *object.Environment, args ...object.Object) object.Object {
-	if len(args) != 1 {
-		return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+	if len(args) != 1 && len(args) != 2 {
+		return object.NewError(0, "wrong number of arguments. got=%d, want=1 or 2", len(args))
 	}
 	path, errObj := stringArg(args[0], "argument to `parse_file` must be STRING, got %s")
 	if errObj != nil {
@@ -49,7 +53,11 @@ func yamlParseFile(env *object.Environment, args ...object.Object) object.Object
 	if err != nil {
 		return object.NewError(0, "could not parse yaml file '%s': %s", path, err.Error())
 	}
-	return objectFromNative(value)
+	var schema object.Object
+	if len(args) == 2 {
+		schema = args[1]
+	}
+	return objectFromNativeWithSchema(value, schema, "yaml")
 }
 
 func yamlStringify(env *object.Environment, args ...object.Object) object.Object {
@@ -57,7 +65,7 @@ func yamlStringify(env *object.Environment, args ...object.Object) object.Object
 		return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
 	}
 
-	data, err := yaml.Marshal(nativeValue(args[0]))
+	data, err := yaml.Marshal(nativeValueForFormat(args[0], "yaml"))
 	if err != nil {
 		return object.NewError(0, "could not stringify yaml: %s", err.Error())
 	}

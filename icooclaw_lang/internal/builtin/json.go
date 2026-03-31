@@ -18,7 +18,7 @@ func jsonStringify(env *object.Environment, args ...object.Object) object.Object
 	if len(args) != 1 {
 		return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
 	}
-	data, err := json.Marshal(nativeValue(args[0]))
+	data, err := json.Marshal(nativeValueForFormat(args[0], "json"))
 	if err != nil {
 		return object.NewError(0, "could not stringify json: %s", err.Error())
 	}
@@ -29,7 +29,7 @@ func jsonStringifyPretty(env *object.Environment, args ...object.Object) object.
 	if len(args) != 1 {
 		return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
 	}
-	data, err := json.MarshalIndent(nativeValue(args[0]), "", "  ")
+	data, err := json.MarshalIndent(nativeValueForFormat(args[0], "json"), "", "  ")
 	if err != nil {
 		return object.NewError(0, "could not stringify pretty json: %s", err.Error())
 	}
@@ -37,8 +37,8 @@ func jsonStringifyPretty(env *object.Environment, args ...object.Object) object.
 }
 
 func jsonParse(env *object.Environment, args ...object.Object) object.Object {
-	if len(args) != 1 {
-		return object.NewError(0, "wrong number of arguments. got=%d, want=1", len(args))
+	if len(args) != 1 && len(args) != 2 {
+		return object.NewError(0, "wrong number of arguments. got=%d, want=1 or 2", len(args))
 	}
 	input, errObj := stringArg(args[0], "argument to `parse` must be STRING, got %s")
 	if errObj != nil {
@@ -48,5 +48,9 @@ func jsonParse(env *object.Environment, args ...object.Object) object.Object {
 	if err := json.Unmarshal([]byte(input), &decoded); err != nil {
 		return object.NewError(0, "could not parse json: %s", err.Error())
 	}
-	return objectFromNative(decoded)
+	var schema object.Object
+	if len(args) == 2 {
+		schema = args[1]
+	}
+	return objectFromNativeWithSchema(decoded, schema, "json")
 }
