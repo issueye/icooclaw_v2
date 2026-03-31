@@ -42,6 +42,8 @@ var precedences = map[lexer.TokenType]int{
 	lexer.MINUS_EQ: ASSIGN,
 	lexer.STAR_EQ:  ASSIGN,
 	lexer.SLASH_EQ: ASSIGN,
+	lexer.PLUS_PLUS: INDEX,
+	lexer.MINUS_MINUS: INDEX,
 	lexer.OR:       OR,
 	lexer.AND:      AND,
 	lexer.EQ:       EQUALS,
@@ -82,6 +84,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(lexer.LBRACE, p.parseHashLiteral)
 	p.registerPrefix(lexer.UNDERSCORE, p.parseUnderscore)
 	p.registerPrefix(lexer.MATCH, p.parseMatchExpr)
+	p.registerPrefix(lexer.FN, p.parseFunctionLiteral)
 
 	p.registerInfix(lexer.PLUS, p.parseInfixExpr)
 	p.registerInfix(lexer.MINUS, p.parseInfixExpr)
@@ -101,6 +104,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(lexer.MINUS_EQ, p.parseCompoundAssignExpr)
 	p.registerInfix(lexer.STAR_EQ, p.parseCompoundAssignExpr)
 	p.registerInfix(lexer.SLASH_EQ, p.parseCompoundAssignExpr)
+	p.registerInfix(lexer.PLUS_PLUS, p.parsePostfixExpr)
+	p.registerInfix(lexer.MINUS_MINUS, p.parsePostfixExpr)
 	p.registerInfix(lexer.LPAREN, p.parseCallExpr)
 	p.registerInfix(lexer.LBRACKET, p.parseIndexExpr)
 	p.registerInfix(lexer.DOT, p.parseDotExpr)

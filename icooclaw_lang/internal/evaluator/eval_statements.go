@@ -239,13 +239,49 @@ func evalWhileStmt(node *ast.WhileStmt, env *object.Environment) object.Object {
 
 func evalFunctionStmt(node *ast.FunctionStmt, env *object.Environment) object.Object {
 	fn := &object.Function{
-		Name:          node.Name.Value,
+		Name:           node.Name.Value,
+		Params:         node.Params,
+		Body:           node.Body,
+		Env:            env,
+		ReceiverName:   receiverIdentifierValue(node.ReceiverName),
+		ReceiverTarget: receiverIdentifierValue(node.ReceiverTarget),
+		TransientSafe:  blockAllowsTransientReuse(node.Body),
+	}
+
+	if node.ReceiverName != nil && node.ReceiverTarget != nil {
+		targetObj, ok := env.Get(node.ReceiverTarget.Value)
+		if !ok {
+			return object.NewError(node.Token.Line, "receiver target not found: %s", node.ReceiverTarget.Value)
+		}
+		targetHash, ok := targetObj.(*object.Hash)
+		if !ok {
+			return object.NewError(node.Token.Line, "receiver target '%s' must be HASH, got %s", node.ReceiverTarget.Value, targetObj.Type())
+		}
+		targetHash.Pairs[node.Name.Value] = object.HashPair{
+			Key:   &object.String{Value: node.Name.Value},
+			Value: fn,
+		}
+		return fn
+	}
+
+	return env.Set(node.Name.Value, fn)
+}
+
+func evalFunctionLiteral(node *ast.FunctionLiteral, env *object.Environment) object.Object {
+	return &object.Function{
+		Name:          "",
 		Params:        node.Params,
 		Body:          node.Body,
 		Env:           env,
 		TransientSafe: blockAllowsTransientReuse(node.Body),
 	}
-	return env.Set(node.Name.Value, fn)
+}
+
+func receiverIdentifierValue(ident *ast.Identifier) string {
+	if ident == nil {
+		return ""
+	}
+	return ident.Value
 }
 
 func evalMatchStmt(node *ast.MatchStmt, env *object.Environment) object.Object {

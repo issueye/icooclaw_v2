@@ -1,7 +1,7 @@
 # icooclaw_lang AI API 指南
 
 版本：`0.1.0`  
-最后更新：`2026-03-30`
+最后更新：`2026-03-31`
 
 这份文档面向 AI 代理、代码生成器和自动化系统，目标是帮助模型稳定生成可运行的 `icooclaw_lang` 脚本。内容重点不是底层实现，而是“应如何生成代码”。
 
@@ -23,9 +23,11 @@
 运行与打包入口：
 
 ```bash
-iclang run demo.is input.txt --mode=prod
+iclang run [--max-goroutines n] demo.is input.txt --mode=prod
 iclang build demo.is -o demo.exe
-demo.exe input.txt --mode=prod
+iclang init demo-app -name demo_app
+iclang repl [--max-goroutines n]
+demo.exe [--max-goroutines n] input.txt --mode=prod
 ```
 
 ## 2. 规范运行时表面
@@ -54,6 +56,12 @@ abs(number)
 
 ### 2.2 核心方法
 
+所有运行时对象都支持：
+
+```is
+value.to_string()
+```
+
 字符串方法：
 
 ```is
@@ -76,6 +84,28 @@ arr.pop()
 arr.join(sep)
 arr.contains(value)
 ```
+
+对象方法约定：
+
+```is
+user = {
+    "name": "icooclaw",
+    "rename": fn(next) {
+        this.name = next
+        return self.name
+    }
+}
+
+user.rename("codex")
+```
+
+- 支持匿名函数表达式：`fn(args) { ... }`
+- 当哈希字段是函数时，可以使用 `obj.method(...)`
+- 方法体内可使用 `this`，`self` 为等价别名
+- `fn (u user) rename(...)` 会把方法挂到现有对象 `user`
+- 方法体内也可以直接使用 receiver 名 `u`
+- `HASH` 支持 `obj.field = value` 和 `obj.field += value`
+- 变量和 `HASH` 字段支持 `++` / `--`
 
 ## 3. 推荐语法模板
 
@@ -166,8 +196,12 @@ export VERSION
 当前 builtin 根对象：
 
 ```is
+async
+exec
 fs
 json
+toml
+yaml
 time
 os
 path
@@ -181,7 +215,40 @@ db
 
 ## 5. API 签名速查
 
-### 5.1 fs
+### 5.1 async
+
+```is
+async.pool(size)
+async.wait_group()
+async.runtime_concurrency()
+async.set_runtime_concurrency(size)
+```
+
+`async.pool(size)` 返回池对象：
+
+```is
+pool.submit(fn)
+pool.submit(fn, [args])
+pool.wait()
+pool.size()
+```
+
+`async.wait_group()` 返回 waitgroup 对象：
+
+```is
+wg.add(n)
+wg.done()
+wg.wait()
+wg.count()
+```
+
+运行时并发度约定：
+
+- 默认读取环境变量 `ICLANG_MAX_GOROUTINES`
+- `iclang run --max-goroutines n ...` 可覆盖当前运行
+- `demo.exe --max-goroutines n ...` 可覆盖打包后的程序运行
+
+### 5.2 fs
 
 ```is
 fs.read_file(path)
@@ -195,7 +262,7 @@ fs.stat(path)
 fs.abs(path)
 ```
 
-### 5.2 json
+### 5.3 json
 
 ```is
 json.parse(text)
@@ -203,7 +270,23 @@ json.stringify(value)
 json.stringify_pretty(value)
 ```
 
-### 5.3 time
+### 5.4 toml
+
+```is
+toml.parse(text)
+toml.parse_file(path)
+toml.stringify(value)
+```
+
+### 5.5 yaml
+
+```is
+yaml.parse(text)
+yaml.parse_file(path)
+yaml.stringify(value)
+```
+
+### 5.6 time
 
 ```is
 time.now()
@@ -233,7 +316,7 @@ time.sleep_ms(ms)
 }
 ```
 
-### 5.4 os
+### 5.7 os
 
 ```is
 os.cwd()
@@ -260,7 +343,7 @@ exec.start_in(dir, name)
 exec.start_in(dir, name, [args])
 ```
 
-### 5.5 path
+### 5.8 path
 
 ```is
 path.join(part1, part2, ...)
@@ -270,7 +353,7 @@ path.dir(path_value)
 path.clean(path_value)
 ```
 
-### 5.6 crypto
+### 5.9 crypto
 
 ```is
 crypto.md5(text)
@@ -280,7 +363,7 @@ crypto.base_64_encode(text)
 crypto.base_64_decode(text)
 ```
 
-### 5.7 log
+### 5.10 log
 
 ```is
 log.debug(message...)
@@ -306,7 +389,7 @@ log.reset()
 log.info({"request_id": "req-1", "code": 200}, "request complete")
 ```
 
-### 5.8 http
+### 5.11 http
 
 客户端：
 
@@ -395,7 +478,7 @@ handler 返回规则：
 - 响应哈希 -> 直接作为响应
 - 其它对象 -> 自动转 JSON
 
-### 5.9 websocket
+### 5.12 websocket
 
 客户端：
 
@@ -444,7 +527,7 @@ fn ws_handler(req, socket) {
 }
 ```
 
-### 5.10 sse
+### 5.13 sse
 
 客户端：
 
@@ -502,7 +585,7 @@ fn events(req, stream) {
 }
 ```
 
-### 5.11 db
+### 5.14 db
 
 打开连接：
 
@@ -649,6 +732,30 @@ fn events(req, stream) {
     stream.set_retry(1500)
     stream.send_event_with_id("update", "done", "evt-1")
 }
+```
+
+### 6.5 并发池与 waitgroup
+
+```is
+async.set_runtime_concurrency(4)
+
+pool = async.pool(2)
+wg = async.wait_group()
+total = 0
+
+fn worker(v) {
+    total += v
+    wg.done()
+}
+
+for i in range(1, 5) {
+    wg.add(1)
+    pool.submit(worker, [i])
+}
+
+wg.wait()
+pool.wait()
+print(total.to_string())
 ```
 
 ## 7. 不要这样生成

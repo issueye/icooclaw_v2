@@ -55,6 +55,16 @@ func (p *Parser) parseFunctionStmt() *ast.FunctionStmt {
 	stmt := &ast.FunctionStmt{Token: p.curToken}
 	p.nextToken()
 
+	if p.curTokenIs(lexer.LPAREN) {
+		receiverName, receiverTarget := p.parseFunctionReceiver()
+		if receiverName == nil || receiverTarget == nil {
+			return nil
+		}
+		stmt.ReceiverName = receiverName
+		stmt.ReceiverTarget = receiverTarget
+		p.nextToken()
+	}
+
 	if !p.curTokenIs(lexer.IDENTIFIER) {
 		msg := fmt.Sprintf("line %d: expected function name, got %s", p.curToken.Line, p.curToken.Type)
 		p.errors = append(p.errors, msg)
@@ -73,6 +83,43 @@ func (p *Parser) parseFunctionStmt() *ast.FunctionStmt {
 	stmt.Body = p.parseBlockStmt()
 
 	return stmt
+}
+
+func (p *Parser) parseFunctionLiteral() ast.Expr {
+	lit := &ast.FunctionLiteral{Token: p.curToken}
+
+	if !p.expectPeek(lexer.LPAREN) {
+		return nil
+	}
+	lit.Params = p.parseParams()
+
+	if !p.expectPeek(lexer.LBRACE) {
+		return nil
+	}
+	lit.Body = p.parseBlockStmt()
+
+	return lit
+}
+
+func (p *Parser) parseFunctionReceiver() (*ast.Identifier, *ast.Identifier) {
+	p.nextToken()
+	if !p.curTokenIs(lexer.IDENTIFIER) {
+		msg := fmt.Sprintf("line %d: expected receiver name, got %s", p.curToken.Line, p.curToken.Type)
+		p.errors = append(p.errors, msg)
+		return nil, nil
+	}
+	receiverName := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if !p.expectPeek(lexer.IDENTIFIER) {
+		return nil, nil
+	}
+	receiverTarget := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if !p.expectPeek(lexer.RPAREN) {
+		return nil, nil
+	}
+
+	return receiverName, receiverTarget
 }
 
 func (p *Parser) parseParams() []*ast.Identifier {

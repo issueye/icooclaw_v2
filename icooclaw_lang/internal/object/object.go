@@ -95,10 +95,12 @@ func (h *Hash) Inspect() string {
 }
 
 type Function struct {
-	Name   string
-	Params []*ast.Identifier
-	Body   *ast.BlockStmt
-	Env    *Environment
+	Name           string
+	Params         []*ast.Identifier
+	Body           *ast.BlockStmt
+	Env            *Environment
+	ReceiverName   string
+	ReceiverTarget string
 	TransientSafe bool
 }
 

@@ -167,10 +167,12 @@ func (ws *WhileStmt) String() string {
 }
 
 type FunctionStmt struct {
-	Token  lexer.Token
-	Name   *Identifier
-	Params []*Identifier
-	Body   *BlockStmt
+	Token          lexer.Token
+	Name           *Identifier
+	Params         []*Identifier
+	Body           *BlockStmt
+	ReceiverName   *Identifier
+	ReceiverTarget *Identifier
 }
 
 func (fs *FunctionStmt) statementNode()       {}
@@ -183,7 +185,11 @@ func (fs *FunctionStmt) String() string {
 		}
 		params += p.String()
 	}
-	return "fn " + fs.Name.String() + "(" + params + ") {\n" + fs.Body.String() + "}"
+	out := "fn "
+	if fs.ReceiverName != nil && fs.ReceiverTarget != nil {
+		out += "(" + fs.ReceiverName.String() + " " + fs.ReceiverTarget.String() + ") "
+	}
+	return out + fs.Name.String() + "(" + params + ") {\n" + fs.Body.String() + "}"
 }
 
 type MatchStmt struct {
@@ -393,6 +399,18 @@ func (cae *CompoundAssignExpr) String() string {
 	return cae.Left.String() + " " + cae.Operator + " " + cae.Right.String()
 }
 
+type PostfixExpr struct {
+	Token    lexer.Token
+	Left     Expr
+	Operator string
+}
+
+func (pe *PostfixExpr) expressionNode()      {}
+func (pe *PostfixExpr) TokenLiteral() string { return pe.Token.Literal }
+func (pe *PostfixExpr) String() string {
+	return pe.Left.String() + pe.Operator
+}
+
 type CallExpr struct {
 	Token     lexer.Token
 	Function  Expr
@@ -410,6 +428,25 @@ func (ce *CallExpr) String() string {
 		args += a.String()
 	}
 	return ce.Function.String() + "(" + args + ")"
+}
+
+type FunctionLiteral struct {
+	Token  lexer.Token
+	Params []*Identifier
+	Body   *BlockStmt
+}
+
+func (fl *FunctionLiteral) expressionNode()      {}
+func (fl *FunctionLiteral) TokenLiteral() string { return fl.Token.Literal }
+func (fl *FunctionLiteral) String() string {
+	params := ""
+	for i, p := range fl.Params {
+		if i > 0 {
+			params += ", "
+		}
+		params += p.String()
+	}
+	return "fn(" + params + ") {\n" + fl.Body.String() + "}"
 }
 
 type ArrayLiteral struct {

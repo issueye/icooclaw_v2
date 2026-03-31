@@ -99,7 +99,11 @@ func (l *Lexer) NextToken() Token {
 			tok = newToken(GT, l.ch, l.line, l.column)
 		}
 	case '+':
-		if l.peekChar() == '=' {
+		if l.peekChar() == '+' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: PLUS_PLUS, Literal: string(ch) + string(l.ch), Line: l.line, Column: l.column - 1}
+		} else if l.peekChar() == '=' {
 			ch := l.ch
 			l.readChar()
 			tok = Token{Type: PLUS_EQ, Literal: string(ch) + string(l.ch), Line: l.line, Column: l.column - 1}
@@ -111,6 +115,10 @@ func (l *Lexer) NextToken() Token {
 			ch := l.ch
 			l.readChar()
 			tok = Token{Type: ARROW, Literal: string(ch) + string(l.ch), Line: l.line, Column: l.column - 1}
+		} else if l.peekChar() == '-' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: MINUS_MINUS, Literal: string(ch) + string(l.ch), Line: l.line, Column: l.column - 1}
 		} else if l.peekChar() == '=' {
 			ch := l.ch
 			l.readChar()

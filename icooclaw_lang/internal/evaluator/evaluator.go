@@ -76,8 +76,12 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalAssignExpr(node, env)
 	case *ast.CompoundAssignExpr:
 		return evalCompoundAssignExpr(node, env)
+	case *ast.PostfixExpr:
+		return evalPostfixExpr(node, env)
 	case *ast.CallExpr:
 		return evalCallExpr(node, env)
+	case *ast.FunctionLiteral:
+		return evalFunctionLiteral(node, env)
 	case *ast.ArrayLiteral:
 		return evalArrayLiteral(node, env)
 	case *ast.HashLiteral:

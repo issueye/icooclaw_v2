@@ -324,22 +324,24 @@ func evalAssignExpr(node *ast.AssignExpr, env *object.Environment) object.Object
 		default:
 			return object.NewError(node.Token.Line, "index assignment not supported on %s", obj.Type())
 		}
+	case *ast.DotExpr:
+		obj := Eval(left.Left, env)
+		if object.IsError(obj) {
+			return obj
+		}
+		hash, ok := obj.(*object.Hash)
+		if !ok {
+			return object.NewError(node.Token.Line, "dot assignment not supported on %s", obj.Type())
+		}
+		key := &object.String{Value: left.Right.Value}
+		hash.Pairs[object.HashKey(key)] = object.HashPair{Key: key, Value: right}
+		return right
 	default:
 		return object.NewError(node.Token.Line, "invalid assignment target")
 	}
 }
 
 func evalCompoundAssignExpr(node *ast.CompoundAssignExpr, env *object.Environment) object.Object {
-	ident, ok := node.Left.(*ast.Identifier)
-	if !ok {
-		return object.NewError(node.Token.Line, "invalid compound assignment target")
-	}
-
-	left, ok := env.Get(ident.Value)
-	if !ok {
-		return object.NewError(node.Token.Line, "identifier not found: %s", ident.Value)
-	}
-
 	right := Eval(node.Right, env)
 	if object.IsError(right) {
 		return right
@@ -359,12 +361,89 @@ func evalCompoundAssignExpr(node *ast.CompoundAssignExpr, env *object.Environmen
 		return object.NewError(node.Token.Line, "unknown compound operator: %s", node.Operator)
 	}
 
-	result := evalArithmeticForCompound(left, right, op, node.Token.Line)
-	if object.IsError(result) {
+	switch left := node.Left.(type) {
+	case *ast.Identifier:
+		current, ok := env.Get(left.Value)
+		if !ok {
+			return object.NewError(node.Token.Line, "identifier not found: %s", left.Value)
+		}
+		result := evalArithmeticForCompound(current, right, op, node.Token.Line)
+		if object.IsError(result) {
+			return result
+		}
+		return env.Set(left.Value, result)
+	case *ast.DotExpr:
+		obj := Eval(left.Left, env)
+		if object.IsError(obj) {
+			return obj
+		}
+		hash, ok := obj.(*object.Hash)
+		if !ok {
+			return object.NewError(node.Token.Line, "dot compound assignment not supported on %s", obj.Type())
+		}
+		key := &object.String{Value: left.Right.Value}
+		pair, ok := hash.Pairs[object.HashKey(key)]
+		if !ok {
+			return object.NewError(node.Token.Line, "property not found: %s", left.Right.Value)
+		}
+		result := evalArithmeticForCompound(pair.Value, right, op, node.Token.Line)
+		if object.IsError(result) {
+			return result
+		}
+		hash.Pairs[object.HashKey(key)] = object.HashPair{Key: key, Value: result}
 		return result
+	default:
+		return object.NewError(node.Token.Line, "invalid compound assignment target")
+	}
+}
+
+func evalPostfixExpr(node *ast.PostfixExpr, env *object.Environment) object.Object {
+	var op string
+	switch node.Operator {
+	case "++":
+		op = "+"
+	case "--":
+		op = "-"
+	default:
+		return object.NewError(node.Token.Line, "unknown postfix operator: %s", node.Operator)
 	}
 
-	return env.Set(ident.Value, result)
+	one := &object.Integer{Value: 1}
+
+	switch left := node.Left.(type) {
+	case *ast.Identifier:
+		current, ok := env.Get(left.Value)
+		if !ok {
+			return object.NewError(node.Token.Line, "identifier not found: %s", left.Value)
+		}
+		result := evalArithmeticForCompound(current, one, op, node.Token.Line)
+		if object.IsError(result) {
+			return result
+		}
+		return env.Set(left.Value, result)
+	case *ast.DotExpr:
+		obj := Eval(left.Left, env)
+		if object.IsError(obj) {
+			return obj
+		}
+		hash, ok := obj.(*object.Hash)
+		if !ok {
+			return object.NewError(node.Token.Line, "dot postfix operator not supported on %s", obj.Type())
+		}
+		key := &object.String{Value: left.Right.Value}
+		pair, ok := hash.Pairs[object.HashKey(key)]
+		if !ok {
+			return object.NewError(node.Token.Line, "property not found: %s", left.Right.Value)
+		}
+		result := evalArithmeticForCompound(pair.Value, one, op, node.Token.Line)
+		if object.IsError(result) {
+			return result
+		}
+		hash.Pairs[object.HashKey(key)] = object.HashPair{Key: key, Value: result}
+		return result
+	default:
+		return object.NewError(node.Token.Line, "invalid postfix target")
+	}
 }
 
 func evalArithmeticForCompound(left, right object.Object, op string, line int) object.Object {
@@ -417,8 +496,17 @@ func evalCallExpr(node *ast.CallExpr, env *object.Environment) object.Object {
 }
 
 func callFunction(fn *object.Function, args []object.Object, line int) object.Object {
+	return callFunctionWithLocals(fn, args, nil, line)
+}
+
+func callFunctionWithLocals(fn *object.Function, args []object.Object, locals map[string]object.Object, line int) object.Object {
 	callEnv := newScopedEnv(fn.Env, fn.TransientSafe)
 	defer releaseScopedEnv(callEnv)
+	if len(locals) > 0 {
+		if assigned := callEnv.DefineLocals(locals); object.IsError(assigned) {
+			return assigned
+		}
+	}
 	if assigned := callEnv.DefineFunctionParams(fn.Params, args, line); object.IsError(assigned) {
 		return assigned
 	}

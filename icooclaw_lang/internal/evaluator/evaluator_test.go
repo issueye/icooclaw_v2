@@ -243,6 +243,161 @@ hash_text = {"name": "icooclaw"}.to_string()
 	}
 }
 
+func TestHashFunctionPropertyActsAsObjectMethod(t *testing.T) {
+	env, result := evalSource(t, `
+user = {
+    "name": "icooclaw"
+}
+
+fn (u user) rename(next) {
+    u.name = next
+    return self["name"]
+}
+
+fn (u user) label() {
+    return "user:" + this.name
+}
+
+renamed = user.rename("codex")
+label = user.label()
+name = user.name
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	renamed, _ := env.Get("renamed")
+	if renamed.Inspect() != "codex" {
+		t.Fatalf("expected renamed=codex, got %s", renamed.Inspect())
+	}
+
+	label, _ := env.Get("label")
+	if label.Inspect() != "user:codex" {
+		t.Fatalf("expected label=user:codex, got %s", label.Inspect())
+	}
+
+	name, _ := env.Get("name")
+	if name.Inspect() != "codex" {
+		t.Fatalf("expected name=codex, got %s", name.Inspect())
+	}
+}
+
+func TestDotAssignmentWorksForHashObjects(t *testing.T) {
+	env, result := evalSource(t, `
+user = {
+    "name": "icooclaw",
+    "count": 1
+}
+
+user.name = "codex"
+user.count += 2
+
+name = user.name
+count = user.count
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	name, _ := env.Get("name")
+	if name.Inspect() != "codex" {
+		t.Fatalf("expected name=codex, got %s", name.Inspect())
+	}
+
+	count, _ := env.Get("count")
+	if count.Inspect() != "3" {
+		t.Fatalf("expected count=3, got %s", count.Inspect())
+	}
+}
+
+func TestAnonymousFunctionLiteralWorksAsObjectMethod(t *testing.T) {
+	env, result := evalSource(t, `
+user = {
+    "name": "icooclaw",
+    "rename": fn(next) {
+        this.name = next
+        return self.name
+    },
+    "label": fn() {
+        return "user:" + this.name
+    }
+}
+
+renamed = user.rename("codex")
+label = user.label()
+name = user.name
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	renamed, _ := env.Get("renamed")
+	if renamed.Inspect() != "codex" {
+		t.Fatalf("expected renamed=codex, got %s", renamed.Inspect())
+	}
+
+	label, _ := env.Get("label")
+	if label.Inspect() != "user:codex" {
+		t.Fatalf("expected label=user:codex, got %s", label.Inspect())
+	}
+
+	name, _ := env.Get("name")
+	if name.Inspect() != "codex" {
+		t.Fatalf("expected name=codex, got %s", name.Inspect())
+	}
+}
+
+func TestPostfixIncrementAndDecrementWorkForVariablesAndHashFields(t *testing.T) {
+	env, result := evalSource(t, `
+count = 1
+count++
+count--
+count++
+
+user = {
+    "visits": 2
+}
+
+user.visits++
+user.visits--
+user.visits++
+
+final_count = count
+final_visits = user.visits
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	finalCount, _ := env.Get("final_count")
+	if finalCount.Inspect() != "2" {
+		t.Fatalf("expected final_count=2, got %s", finalCount.Inspect())
+	}
+
+	finalVisits, _ := env.Get("final_visits")
+	if finalVisits.Inspect() != "3" {
+		t.Fatalf("expected final_visits=3, got %s", finalVisits.Inspect())
+	}
+}
+
+func TestMethodDeclarationRequiresExistingHashReceiver(t *testing.T) {
+	_, result := evalSource(t, `
+value = 1
+
+fn (v value) rename(next) {
+    return next
+}
+`)
+
+	if !object.IsError(result) {
+		t.Fatalf("expected receiver type error, got %#v", result)
+	}
+}
+
 func TestCommentsAreIgnoredByLexerAndParser(t *testing.T) {
 	env, result := evalSource(t, `
 x = 1 // first value

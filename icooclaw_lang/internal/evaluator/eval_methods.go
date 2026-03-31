@@ -42,7 +42,16 @@ func evalHashMethod(hash *object.Hash, method string, args []object.Object, line
 	}
 
 	switch callee := pair.Value.(type) {
-	case *object.Builtin, *object.Function:
+	case *object.Function:
+		locals := map[string]object.Object{
+			"this": hash,
+			"self": hash,
+		}
+		if callee.ReceiverName != "" {
+			locals[callee.ReceiverName] = hash
+		}
+		return callFunctionWithLocals(callee, args, locals, line)
+	case *object.Builtin:
 		return callRuntimeObject(env, callee, args, line)
 	default:
 		return object.NewError(line, "property '%s' is not callable", method)

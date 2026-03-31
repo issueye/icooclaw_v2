@@ -61,6 +61,8 @@ const (
 	MINUS_EQ = "-="
 	STAR_EQ  = "*="
 	SLASH_EQ = "/="
+	PLUS_PLUS = "++"
+	MINUS_MINUS = "--"
 	ARROW    = "->"
 
 	LPAREN    = "("

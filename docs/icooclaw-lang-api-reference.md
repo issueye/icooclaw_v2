@@ -23,6 +23,7 @@ CLI 用法：
 ```bash
 iclang run [--max-goroutines n] <file.is> [args...]
 iclang build <file.is> [-o app]
+iclang init <dir> [-name demo]
 iclang repl [--max-goroutines n]
 iclang version
 ```
@@ -168,6 +169,12 @@ export add
 
 ## 5. 内建方法
 
+### 5.0 通用方法
+
+| 方法 | 签名 | 说明 |
+| --- | --- | --- |
+| `to_string` | `value.to_string()` | 所有运行时对象通用，行为与 `str(value)` 对齐 |
+
 ### 5.1 字符串方法
 
 | 方法 | 签名 |
@@ -195,6 +202,31 @@ export add
 
 `HASH` 的方法调用本质上是对哈希字段中的可调用对象进行分发。这也是原生库命名空间对外暴露 API 的方式，例如 `http.client.get(...)`、`db.sqlite.open(...)`。
 
+对于普通对象哈希，如果字段值是函数，也可以直接作为方法调用：
+
+```is
+user = {
+    "name": "icooclaw",
+    "rename": fn(next) {
+        this.name = next
+        return self.name
+    }
+}
+
+user.rename("codex")
+```
+
+约定：
+
+- 支持匿名函数表达式：`fn(args) { ... }`
+- `fn (u user) rename(...) { ... }` 会把方法挂到现有对象 `user` 上
+- `obj.method(...)` 调用时会为函数注入 `this`
+- `self` 是 `this` 的等价别名
+- 如果声明了 receiver 名，例如 `u`，方法体内也可以直接使用 `u`
+- `HASH` 现在支持 `obj.field = value` 和 `obj.field += value` 这类点赋值
+- 变量和 `HASH` 字段都支持后缀 `++` / `--`
+- 直接把函数取出来再调用时，不会自动保留这个绑定
+
 ## 6. 内建库
 
 当前 builtin 根对象：
@@ -204,6 +236,7 @@ export add
 - `fs`
 - `http`
 - `json`
+- `toml`
 - `yaml`
 - `log`
 - `time`
@@ -316,7 +349,21 @@ pool.wait()
 - `yaml.parse_file` 适合读取项目配置或模板文件
 - `yaml.stringify` 适合把运行时对象导出为 YAML 文本
 
-### 6.5 time
+### 6.5 toml
+
+| API | 签名 | 返回值 |
+| --- | --- | --- |
+| `toml.parse` | `toml.parse(text)` | 运行时对象 |
+| `toml.parse_file` | `toml.parse_file(path)` | 运行时对象 |
+| `toml.stringify` | `toml.stringify(value)` | `STRING` |
+
+说明：
+
+- TOML 解析结果会转换成运行时 `HASH` / `ARRAY` / 标量值
+- `toml.parse_file` 适合读取简单项目清单或配置文件
+- `toml.stringify` 当前要求输入是 `HASH`
+
+### 6.6 time
 
 | API | 签名 |
 | --- | --- |
@@ -346,7 +393,7 @@ pool.wait()
 }
 ```
 
-### 6.6 os
+### 6.7 os
 
 | API | 签名 |
 | --- | --- |
@@ -379,7 +426,7 @@ os.has_flag("verbose") # true
 os.script_path()       # "demo.is"
 ```
 
-### 6.7 path
+### 6.8 path
 
 | API | 签名 |
 | --- | --- |
@@ -389,7 +436,7 @@ os.script_path()       # "demo.is"
 | `path.dir` | `path.dir(path_value)` |
 | `path.clean` | `path.clean(path_value)` |
 
-### 6.8 exec
+### 6.9 exec
 
 | API | 签名 |
 | --- | --- |
@@ -455,7 +502,7 @@ while true {
 print(proc.wait())
 ```
 
-### 6.9 crypto
+### 6.10 crypto
 
 | API | 签名 |
 | --- | --- |
@@ -467,7 +514,7 @@ print(proc.wait())
 
 当前 crypto API 都以字符串为输入，并返回字符串。
 
-### 6.10 log
+### 6.11 log
 
 | API | 签名 |
 | --- | --- |
@@ -495,7 +542,7 @@ JSON 模式日志格式：
 {"timestamp":"2026-03-30T20:00:00+08:00","level":"INFO","message":"hello","fields":{"request_id":"req-1"}}
 ```
 
-### 6.11 http
+### 6.12 http
 
 结构：
 
@@ -597,7 +644,7 @@ handler 返回值规则：
 }
 ```
 
-### 6.12 websocket
+### 6.13 websocket
 
 结构：
 
@@ -664,7 +711,7 @@ fn ws_handler(req, socket) {
 }
 ```
 
-### 6.13 sse
+### 6.14 sse
 
 结构：
 
@@ -728,7 +775,7 @@ fn events(req, stream) {
 
 `sse.server.stats()` 的结构与 `websocket.server.stats()` 相同。
 
-### 6.14 db
+### 6.15 db
 
 结构：
 

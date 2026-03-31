@@ -133,6 +133,14 @@ func (p *Parser) parseCompoundAssignExpr(left ast.Expr) ast.Expr {
 	return expr
 }
 
+func (p *Parser) parsePostfixExpr(left ast.Expr) ast.Expr {
+	return &ast.PostfixExpr{
+		Token:    p.curToken,
+		Left:     left,
+		Operator: p.curToken.Literal,
+	}
+}
+
 func (p *Parser) parseCallExpr(function ast.Expr) ast.Expr {
 	expr := &ast.CallExpr{Token: p.curToken, Function: function}
 	expr.Arguments = p.parseArgs()
@@ -241,6 +249,15 @@ func (p *Parser) parseHashLiteral() ast.Expr {
 		p.nextToken()
 		value := p.parseExpr(LOWEST)
 		hash.Pairs[key] = value
+
+		if p.curTokenIs(lexer.RBRACE) {
+			break
+		}
+		if p.curTokenIs(lexer.COMMA) {
+			p.nextToken()
+			p.skipNewlines()
+			continue
+		}
 
 		p.skipPeekNewlines()
 		if p.peekTokenIs(lexer.RBRACE) {
