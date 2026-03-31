@@ -13,27 +13,27 @@ type Environment struct {
 func NewEnvironment() *Environment {
 	return &Environment{
 		store:   make(map[string]Object),
-		consts:  make(map[string]bool),
-		exports: make(map[string]bool),
 		runtime: NewRuntime(),
 	}
 }
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
-	env := NewEnvironment()
-	env.outer = outer
-	env.runtime = outer.runtime
-	env.cliArgs = append([]string(nil), outer.cliArgs...)
-	env.scriptPath = outer.scriptPath
-	return env
+	return &Environment{
+		store:      make(map[string]Object),
+		outer:      outer,
+		cliArgs:    outer.cliArgs,
+		scriptPath: outer.scriptPath,
+		runtime:    outer.runtime,
+	}
 }
 
 func NewDetachedEnvironment(proto *Environment) *Environment {
-	env := NewEnvironment()
-	env.runtime = proto.runtime
-	env.cliArgs = append([]string(nil), proto.cliArgs...)
-	env.scriptPath = proto.scriptPath
-	return env
+	return &Environment{
+		store:      make(map[string]Object),
+		cliArgs:    proto.cliArgs,
+		scriptPath: proto.scriptPath,
+		runtime:    proto.runtime,
+	}
 }
 
 func (e *Environment) Get(name string) (Object, bool) {
@@ -47,15 +47,34 @@ func (e *Environment) Set(name string, val Object) Object {
 	e.runtime.mu.Lock()
 	defer e.runtime.mu.Unlock()
 
+	if _, ok := e.store[name]; ok {
+		if e.consts != nil && e.consts[name] {
+			return NewError(0, "cannot reassign to constant '%s'", name)
+		}
+		e.store[name] = val
+		return val
+	}
+
 	if target := e.findVarUnlocked(name); target != nil {
-		if target.consts[name] {
+		if target.consts != nil && target.consts[name] {
 			return NewError(0, "cannot reassign to constant '%s'", name)
 		}
 		target.store[name] = val
 		return val
 	}
 
-	if e.consts[name] {
+	if e.consts != nil && e.consts[name] {
+		return NewError(0, "cannot reassign to constant '%s'", name)
+	}
+	e.store[name] = val
+	return val
+}
+
+func (e *Environment) DefineLocal(name string, val Object) Object {
+	e.runtime.mu.Lock()
+	defer e.runtime.mu.Unlock()
+
+	if e.consts != nil && e.consts[name] {
 		return NewError(0, "cannot reassign to constant '%s'", name)
 	}
 	e.store[name] = val
@@ -73,6 +92,21 @@ func (e *Environment) SetConst(name string, val Object) Object {
 	e.runtime.mu.Lock()
 	defer e.runtime.mu.Unlock()
 
+	if e.consts == nil {
+		e.consts = make(map[string]bool)
+	}
+	e.store[name] = val
+	e.consts[name] = true
+	return val
+}
+
+func (e *Environment) DefineConstLocal(name string, val Object) Object {
+	e.runtime.mu.Lock()
+	defer e.runtime.mu.Unlock()
+
+	if e.consts == nil {
+		e.consts = make(map[string]bool)
+	}
 	e.store[name] = val
 	e.consts[name] = true
 	return val
@@ -83,7 +117,7 @@ func (e *Environment) Wait() {
 }
 
 func (e *Environment) SetCLIContext(scriptPath string, args []string) {
-	e.cliArgs = append([]string(nil), args...)
+	e.cliArgs = args
 	e.scriptPath = scriptPath
 }
 
@@ -108,6 +142,9 @@ func (e *Environment) Export(name string) Object {
 	if _, ok := e.getUnlocked(name); !ok {
 		return NewError(0, "cannot export undefined name '%s'", name)
 	}
+	if e.exports == nil {
+		e.exports = make(map[string]bool)
+	}
 	e.exports[name] = true
 	return &Null{}
 }
@@ -129,6 +166,9 @@ func (e *Environment) CachedModule(path string) (*Hash, bool) {
 	e.runtime.mu.RLock()
 	defer e.runtime.mu.RUnlock()
 
+	if e.runtime.moduleCache == nil {
+		return nil, false
+	}
 	module, ok := e.runtime.moduleCache[path]
 	return module, ok
 }
@@ -137,6 +177,9 @@ func (e *Environment) MarkModuleLoading(path string) bool {
 	e.runtime.mu.Lock()
 	defer e.runtime.mu.Unlock()
 
+	if e.runtime.loadingModule == nil {
+		e.runtime.loadingModule = make(map[string]bool)
+	}
 	if e.runtime.loadingModule[path] {
 		return false
 	}
@@ -149,6 +192,9 @@ func (e *Environment) FinishModuleLoading(path string, exports *Hash) {
 	defer e.runtime.mu.Unlock()
 
 	delete(e.runtime.loadingModule, path)
+	if e.runtime.moduleCache == nil {
+		e.runtime.moduleCache = make(map[string]*Hash)
+	}
 	e.runtime.moduleCache[path] = exports
 }
 

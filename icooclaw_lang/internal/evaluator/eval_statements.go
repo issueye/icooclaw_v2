@@ -75,7 +75,7 @@ func evalForStmt(node *ast.ForStmt, env *object.Environment) object.Object {
 	case *object.Array:
 		for _, elem := range iterable.Elements {
 			loopEnv := object.NewEnclosedEnvironment(env)
-			if assigned := loopEnv.Set(node.Ident.Value, elem); object.IsError(assigned) {
+			if assigned := loopEnv.DefineLocal(node.Ident.Value, elem); object.IsError(assigned) {
 				return assigned
 			}
 			result = evalBlockStmt(node.Body, loopEnv)
@@ -95,7 +95,7 @@ func evalForStmt(node *ast.ForStmt, env *object.Environment) object.Object {
 	case *object.Hash:
 		for _, pair := range iterable.Pairs {
 			loopEnv := object.NewEnclosedEnvironment(env)
-			if assigned := loopEnv.Set(node.Ident.Value, pair.Key); object.IsError(assigned) {
+			if assigned := loopEnv.DefineLocal(node.Ident.Value, pair.Key); object.IsError(assigned) {
 				return assigned
 			}
 			result = evalBlockStmt(node.Body, loopEnv)
@@ -178,7 +178,7 @@ func evalMatchStmt(node *ast.MatchStmt, env *object.Environment) object.Object {
 
 			caseEnv := object.NewEnclosedEnvironment(env)
 			for name, value := range bindings {
-				if assigned := caseEnv.Set(name, value); object.IsError(assigned) {
+				if assigned := caseEnv.DefineLocal(name, value); object.IsError(assigned) {
 					return assigned
 				}
 			}
@@ -287,9 +287,9 @@ func evalTryStmt(node *ast.TryStmt, env *object.Environment) object.Object {
 		catchEnv := object.NewEnclosedEnvironment(env)
 		errObj, ok := result.(*object.Error)
 		if ok {
-			catchEnv.Set(node.CatchVar.Value, &object.String{Value: errObj.Message})
+			catchEnv.DefineLocal(node.CatchVar.Value, &object.String{Value: errObj.Message})
 		} else {
-			catchEnv.Set(node.CatchVar.Value, &object.String{Value: result.Inspect()})
+			catchEnv.DefineLocal(node.CatchVar.Value, &object.String{Value: result.Inspect()})
 		}
 		return evalBlockStmt(node.CatchBlock, catchEnv)
 	}

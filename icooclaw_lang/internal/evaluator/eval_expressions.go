@@ -417,7 +417,7 @@ func callFunction(fn *object.Function, args []object.Object, line int) object.Ob
 			len(fn.Params), len(args))
 	}
 	for i, param := range fn.Params {
-		if assigned := callEnv.Set(param.Value, args[i]); object.IsError(assigned) {
+		if assigned := callEnv.DefineLocal(param.Value, args[i]); object.IsError(assigned) {
 			return assigned
 		}
 	}
@@ -429,7 +429,7 @@ func callFunction(fn *object.Function, args []object.Object, line int) object.Ob
 }
 
 func evalArgs(args []ast.Expr, env *object.Environment) []object.Object {
-	var result []object.Object
+	result := make([]object.Object, 0, len(args))
 	for _, arg := range args {
 		evaluated := Eval(arg, env)
 		if object.IsError(evaluated) {

@@ -23,9 +23,7 @@ func NewRuntime() *Runtime {
 	defaultCallerMu.RUnlock()
 
 	return &Runtime{
-		caller:        caller,
-		moduleCache:   make(map[string]*Hash),
-		loadingModule: make(map[string]bool),
+		caller: caller,
 	}
 }
 
