@@ -25,3 +25,9 @@ cd icooclaw_lang/vscode-extension
 npm install
 npm run package:out
 ```
+
+Windows 也可以直接运行：
+
+```bat
+package.bat
+```

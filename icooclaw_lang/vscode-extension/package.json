@@ -5,6 +5,14 @@
   "version": "0.1.0",
   "publisher": "issueye",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/issueye/icooclaw_v2.git"
+  },
+  "homepage": "https://github.com/issueye/icooclaw_v2/tree/main/icooclaw_lang/vscode-extension",
+  "bugs": {
+    "url": "https://github.com/issueye/icooclaw_v2/issues"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
