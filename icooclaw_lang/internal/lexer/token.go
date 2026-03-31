@@ -74,6 +74,8 @@ const (
 	COMMA     = ","
 	COLON     = ":"
 	DOT       = "."
+	SAFE_DOT  = "?."
+	SAFE_LBRACKET = "?["
 	SEMICOLON = ";"
 	PIPE      = "|"
 	NEWLINE   = "\n"

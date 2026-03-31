@@ -421,6 +421,89 @@ count_value = stats["count"]
 	}
 }
 
+func TestSafeDotAndSafeMethodCallReturnNullForNullObject(t *testing.T) {
+	env, result := evalSource(t, `
+user = null
+name = user?.name
+text = user?.to_string()
+
+profile = {
+    "name": "icooclaw",
+    "rename": fn(next) {
+        this.name = next
+        return this.name
+    }
+}
+
+ok_name = profile?.name
+ok_result = profile?.rename("codex")
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	name, _ := env.Get("name")
+	if name.Inspect() != "null" {
+		t.Fatalf("expected name=null, got %s", name.Inspect())
+	}
+
+	text, _ := env.Get("text")
+	if text.Inspect() != "null" {
+		t.Fatalf("expected text=null, got %s", text.Inspect())
+	}
+
+	okName, _ := env.Get("ok_name")
+	if okName.Inspect() != "icooclaw" {
+		t.Fatalf("expected ok_name=icooclaw, got %s", okName.Inspect())
+	}
+
+	okResult, _ := env.Get("ok_result")
+	if okResult.Inspect() != "codex" {
+		t.Fatalf("expected ok_result=codex, got %s", okResult.Inspect())
+	}
+}
+
+func TestSafeIndexReturnsNullForNullContainer(t *testing.T) {
+	env, result := evalSource(t, `
+items = null
+profile = null
+
+first = items?[0]
+name = profile?["name"]
+
+values = [10, 20]
+user = {"name": "icooclaw"}
+
+ok_first = values?[1]
+ok_name = user?["name"]
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	first, _ := env.Get("first")
+	if first.Inspect() != "null" {
+		t.Fatalf("expected first=null, got %s", first.Inspect())
+	}
+
+	name, _ := env.Get("name")
+	if name.Inspect() != "null" {
+		t.Fatalf("expected name=null, got %s", name.Inspect())
+	}
+
+	okFirst, _ := env.Get("ok_first")
+	if okFirst.Inspect() != "20" {
+		t.Fatalf("expected ok_first=20, got %s", okFirst.Inspect())
+	}
+
+	okName, _ := env.Get("ok_name")
+	if okName.Inspect() != "icooclaw" {
+		t.Fatalf("expected ok_name=icooclaw, got %s", okName.Inspect())
+	}
+}
+
 func TestMethodDeclarationRequiresExistingHashReceiver(t *testing.T) {
 	_, result := evalSource(t, `
 value = 1

@@ -491,11 +491,15 @@ type IndexExpr struct {
 	Token lexer.Token
 	Left  Expr
 	Index Expr
+	Safe  bool
 }
 
 func (ie *IndexExpr) expressionNode()      {}
 func (ie *IndexExpr) TokenLiteral() string { return ie.Token.Literal }
 func (ie *IndexExpr) String() string {
+	if ie.Safe {
+		return ie.Left.String() + "?[" + ie.Index.String() + "]"
+	}
 	return ie.Left.String() + "[" + ie.Index.String() + "]"
 }
 
@@ -503,11 +507,15 @@ type DotExpr struct {
 	Token lexer.Token
 	Left  Expr
 	Right *Identifier
+	Safe  bool
 }
 
 func (de *DotExpr) expressionNode()      {}
 func (de *DotExpr) TokenLiteral() string { return de.Token.Literal }
 func (de *DotExpr) String() string {
+	if de.Safe {
+		return de.Left.String() + "?." + de.Right.String()
+	}
 	return de.Left.String() + "." + de.Right.String()
 }
 
@@ -516,6 +524,7 @@ type MethodCallExpr struct {
 	Object    Expr
 	Method    *Identifier
 	Arguments []Expr
+	Safe      bool
 }
 
 func (mce *MethodCallExpr) expressionNode()      {}
@@ -527,6 +536,9 @@ func (mce *MethodCallExpr) String() string {
 			args += ", "
 		}
 		args += a.String()
+	}
+	if mce.Safe {
+		return mce.Object.String() + "?." + mce.Method.String() + "(" + args + ")"
 	}
 	return mce.Object.String() + "." + mce.Method.String() + "(" + args + ")"
 }

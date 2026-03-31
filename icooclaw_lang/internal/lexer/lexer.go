@@ -144,6 +144,18 @@ func (l *Lexer) NextToken() Token {
 		}
 	case '%':
 		tok = newToken(PERCENT, l.ch, l.line, l.column)
+	case '?':
+		if l.peekChar() == '.' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: SAFE_DOT, Literal: string(ch) + string(l.ch), Line: l.line, Column: l.column - 1}
+		} else if l.peekChar() == '[' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: SAFE_LBRACKET, Literal: string(ch) + string(l.ch), Line: l.line, Column: l.column - 1}
+		} else {
+			tok = newToken(ILLEGAL, l.ch, l.line, l.column)
+		}
 	case '&':
 		if l.peekChar() == '&' {
 			ch := l.ch

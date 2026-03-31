@@ -12,6 +12,11 @@ func evalMethodCallExpr(node *ast.MethodCallExpr, env *object.Environment) objec
 	if object.IsError(obj) {
 		return obj
 	}
+	if node.Safe {
+		if _, ok := obj.(*object.Null); ok {
+			return object.NullObject()
+		}
+	}
 
 	return withCallArgs(node.Arguments, env, func(args []object.Object) object.Object {
 		if node.Method.Value == "to_string" {

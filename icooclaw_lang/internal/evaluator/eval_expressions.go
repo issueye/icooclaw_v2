@@ -663,6 +663,11 @@ func evalIndexExpr(node *ast.IndexExpr, env *object.Environment) object.Object {
 	if object.IsError(left) {
 		return left
 	}
+	if node.Safe {
+		if _, ok := left.(*object.Null); ok {
+			return object.NullObject()
+		}
+	}
 	index := Eval(node.Index, env)
 	if object.IsError(index) {
 		return index
@@ -704,6 +709,11 @@ func evalDotExpr(node *ast.DotExpr, env *object.Environment) object.Object {
 	obj := Eval(node.Left, env)
 	if object.IsError(obj) {
 		return obj
+	}
+	if node.Safe {
+		if _, ok := obj.(*object.Null); ok {
+			return object.NullObject()
+		}
 	}
 
 	switch o := obj.(type) {

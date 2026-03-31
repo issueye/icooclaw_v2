@@ -60,6 +60,8 @@ var precedences = map[lexer.TokenType]int{
 	lexer.LPAREN:   CALL,
 	lexer.LBRACKET: INDEX,
 	lexer.DOT:      INDEX,
+	lexer.SAFE_DOT: INDEX,
+	lexer.SAFE_LBRACKET: INDEX,
 }
 
 func New(l *lexer.Lexer) *Parser {
@@ -108,7 +110,9 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(lexer.MINUS_MINUS, p.parsePostfixExpr)
 	p.registerInfix(lexer.LPAREN, p.parseCallExpr)
 	p.registerInfix(lexer.LBRACKET, p.parseIndexExpr)
+	p.registerInfix(lexer.SAFE_LBRACKET, p.parseSafeIndexExpr)
 	p.registerInfix(lexer.DOT, p.parseDotExpr)
+	p.registerInfix(lexer.SAFE_DOT, p.parseSafeDotExpr)
 
 	p.nextToken()
 	p.nextToken()

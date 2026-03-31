@@ -107,6 +107,8 @@ user.rename("codex")
 - `HASH` 支持 `obj.field = value` 和 `obj.field += value`
 - 变量和 `HASH` 字段支持 `++` / `--`
 - `ARRAY` / `HASH` 的索引位置支持 `items[i]++`、`stats["count"] += 1`
+- 安全访问支持 `obj?.field` 和 `obj?.method()`
+- 安全索引支持 `arr?[0]` 和 `obj?["name"]`
 
 ## 3. 推荐语法模板
 

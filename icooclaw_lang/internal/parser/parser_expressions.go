@@ -275,7 +275,15 @@ func (p *Parser) parseHashLiteral() ast.Expr {
 }
 
 func (p *Parser) parseIndexExpr(left ast.Expr) ast.Expr {
-	expr := &ast.IndexExpr{Token: p.curToken, Left: left}
+	return p.parseIndexExprWithMode(left, false)
+}
+
+func (p *Parser) parseSafeIndexExpr(left ast.Expr) ast.Expr {
+	return p.parseIndexExprWithMode(left, true)
+}
+
+func (p *Parser) parseIndexExprWithMode(left ast.Expr, safe bool) ast.Expr {
+	expr := &ast.IndexExpr{Token: p.curToken, Left: left, Safe: safe}
 	p.nextToken()
 	expr.Index = p.parseExpr(LOWEST)
 
@@ -286,6 +294,14 @@ func (p *Parser) parseIndexExpr(left ast.Expr) ast.Expr {
 }
 
 func (p *Parser) parseDotExpr(left ast.Expr) ast.Expr {
+	return p.parseMemberExpr(left, false)
+}
+
+func (p *Parser) parseSafeDotExpr(left ast.Expr) ast.Expr {
+	return p.parseMemberExpr(left, true)
+}
+
+func (p *Parser) parseMemberExpr(left ast.Expr, safe bool) ast.Expr {
 	p.nextToken()
 
 	if !p.curTokenIs(lexer.IDENTIFIER) {
@@ -303,8 +319,9 @@ func (p *Parser) parseDotExpr(left ast.Expr) ast.Expr {
 			Object:    left,
 			Method:    ident,
 			Arguments: p.parseArgs(),
+			Safe:      safe,
 		}
 	}
 
-	return &ast.DotExpr{Token: p.curToken, Left: left, Right: ident}
+	return &ast.DotExpr{Token: p.curToken, Left: left, Right: ident, Safe: safe}
 }
