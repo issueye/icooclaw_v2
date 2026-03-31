@@ -61,7 +61,6 @@ fn new_http_server(config) {
             })
         },
         "tools_handler": fn(req) {
-            config = toml.parse_file(path.join(this.app_root, "pkg.toml"))
             return json_response(200, {
                 "ok": true,
                 "service": this.config.name,
