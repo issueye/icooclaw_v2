@@ -29,7 +29,9 @@ func main() {
 
 	runCmd := flag.NewFlagSet("run", flag.ExitOnError)
 	buildCmd := flag.NewFlagSet("build", flag.ExitOnError)
+	initCmd := flag.NewFlagSet("init", flag.ExitOnError)
 	buildOutput := buildCmd.String("o", "", "output executable path")
+	initName := initCmd.String("name", "", "project name (defaults to directory name)")
 	versionFlag := flag.Bool("version", false, "print version")
 	flag.Parse()
 
@@ -39,6 +41,7 @@ func main() {
 		fmt.Println("Usage:")
 		fmt.Println("  iclang run <file.is> [args...]    Run a script file")
 		fmt.Println("  iclang build <file.is> [-o app]   Bundle script and runtime into an executable")
+		fmt.Println("  iclang init <dir> [-name demo]    Initialize a standard project")
 		fmt.Println("  iclang version          Show version")
 		fmt.Println("  iclang repl             Start interactive REPL")
 		os.Exit(0)
@@ -81,6 +84,21 @@ func main() {
 			absOutput = output
 		}
 		fmt.Println(absOutput)
+	case "init":
+		initCmd.Parse(os.Args[2:])
+		args := initCmd.Args()
+		if len(args) == 0 {
+			fmt.Println("Error: no project directory specified")
+			fmt.Println("Usage: iclang init <dir> [-name demo]")
+			os.Exit(1)
+		}
+
+		projectDir, err := initProject(args[0], *initName)
+		if err != nil {
+			fmt.Printf("Error: could not initialize project: %s\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(projectDir)
 	case "version":
 		fmt.Println("iclang v" + VERSION)
 	case "repl":

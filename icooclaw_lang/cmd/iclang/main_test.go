@@ -10,6 +10,65 @@ import (
 	"testing"
 )
 
+func TestInitProjectCreatesStandardScaffold(t *testing.T) {
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "demo-app")
+
+	gotDir, err := initProject(projectDir, "")
+	if err != nil {
+		t.Fatalf("initProject() error = %v", err)
+	}
+	if gotDir != projectDir {
+		t.Fatalf("initProject() dir = %q, want %q", gotDir, projectDir)
+	}
+
+	manifestBytes, err := os.ReadFile(filepath.Join(projectDir, "pkg.toml"))
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	manifest := string(manifestBytes)
+	if !strings.Contains(manifest, `name = "demo-app"`) {
+		t.Fatalf("manifest missing project name: %q", manifest)
+	}
+	if !strings.Contains(manifest, `entry = "./main.is"`) {
+		t.Fatalf("manifest missing entry: %q", manifest)
+	}
+
+	mainBytes, err := os.ReadFile(filepath.Join(projectDir, "main.is"))
+	if err != nil {
+		t.Fatalf("read main script: %v", err)
+	}
+	if !strings.Contains(string(mainBytes), `Hello from demo-app`) {
+		t.Fatalf("main script not generated correctly: %q", string(mainBytes))
+	}
+
+	if _, err := os.Stat(filepath.Join(projectDir, "modules")); err != nil {
+		t.Fatalf("modules dir not created: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(projectDir, "README.md")); err != nil {
+		t.Fatalf("README not created: %v", err)
+	}
+}
+
+func TestInitProjectDoesNotOverwriteExistingFiles(t *testing.T) {
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "demo")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("mkdir project: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(projectDir, "pkg.toml"), []byte("name = \"keep\"\n"), 0o644); err != nil {
+		t.Fatalf("seed manifest: %v", err)
+	}
+
+	_, err := initProject(projectDir, "")
+	if err == nil {
+		t.Fatal("expected error when pkg.toml already exists")
+	}
+	if !strings.Contains(err.Error(), "pkg.toml already exists") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestRunFilePassesScriptArgsToRuntime(t *testing.T) {
 	dir := t.TempDir()
 	scriptPath := filepath.Join(dir, "cli_args.is")
