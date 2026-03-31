@@ -417,6 +417,63 @@ answer = math.double_base()
 	}
 }
 
+func TestModuleFactoryCanReturnObjectWithAnonymousMethods(t *testing.T) {
+	rootDir := t.TempDir()
+	modulePath := filepath.Join(rootDir, "server.is")
+	if err := os.WriteFile(modulePath, []byte(`
+fn new_server(name) {
+    instance = {
+        "name": name,
+        "health": fn() {
+            return {
+                "ok": true,
+                "service": this.name,
+            }
+        },
+        "rename": fn(next) {
+            this.name = next
+            return this.name
+        }
+    }
+
+    return instance
+}
+
+export new_server
+`), 0o644); err != nil {
+		t.Fatalf("write module: %v", err)
+	}
+
+	env := object.NewEnvironment()
+	env.SetCLIContext(filepath.Join(rootDir, "main.is"), nil)
+	result := Eval(parseProgramForTest(t, `
+import "./server.is" as server
+app = server.new_server("icooclaw")
+first = app.health()
+renamed = app.rename("codex")
+second = app.health()
+`), env)
+	env.Wait()
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	first := testHashValue(t, env, "first")
+	if first.Pairs["service"].Value.Inspect() != "icooclaw" {
+		t.Fatalf("expected first.service=icooclaw, got %s", first.Inspect())
+	}
+
+	if got := testStringValue(t, env, "renamed"); got != "codex" {
+		t.Fatalf("expected renamed=codex, got %s", got)
+	}
+
+	second := testHashValue(t, env, "second")
+	if second.Pairs["service"].Value.Inspect() != "codex" {
+		t.Fatalf("expected second.service=codex, got %s", second.Inspect())
+	}
+}
+
 func TestClosureCapturesFunctionLocalAfterReturn(t *testing.T) {
 	env, result := evalSource(t, `
 fn make_adder(base) {

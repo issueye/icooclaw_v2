@@ -43,87 +43,90 @@ fn parse_chat_payload(req) {
     }
 }
 
-fn health_handler(req) {
-    config = toml.parse_file("./ic_agent/pkg.toml")
-    return json_response(200, {
-        "ok": true,
-        "service": str(config.name),
-        "version": str(config.version),
-        "mode": str(config_value(config, "agent", "mode", "tool-http")),
-        "request_method": req.method,
-        "path": req.path,
-        "time": time.now().rfc_3339,
-    })
-}
-
-fn tools_handler(req) {
-    config = toml.parse_file("./ic_agent/pkg.toml")
-    return json_response(200, {
-        "ok": true,
-        "service": str(config.name),
-        "version": str(config.version),
-        "description": str(config.description),
-        "commands": [
-            "help",
-            "history",
-            "read <path>",
-            "list <path>",
-            "get <url>",
-            "run <bin> :: arg1 | arg2",
-            "watch <bin> :: arg1 | arg2",
-        ],
-        "help": agent.help_text(),
-    })
-}
-
-fn chat_handler(req) {
-    config = toml.parse_file("./ic_agent/pkg.toml")
-    if req.method != "POST" {
-        return json_response(405, {
-            "ok": false,
-            "error": "method not allowed",
-        })
-    }
-
-    try {
-        payload = parse_chat_payload(req)
-        query = payload.message.trim()
-        history = default_history(payload.history)
-
-        if query == "" {
-            return json_response(400, {
-                "ok": false,
-                "error": "message is required",
+// 创建HTTP服务器实例，用于处理HTTP请求
+fn new_http_server(config) {
+    app_root = path.join(path.dir(os.script_path()), "..")
+    instance = {
+        "config": config,
+        "app_root": app_root,
+        "health_handler": fn(req) {
+            return json_response(200, {
+                "ok": true,
+                "service": str(this.config.name),
+                "version": str(this.config.version),
+                "mode": config_value(this.config, "agent", "mode", "tool-http").to_string(),
+                "request_method": req.method,
+                "path": req.path,
+                "time": time.now().rfc_3339,
             })
+        },
+        "tools_handler": fn(req) {
+            config = toml.parse_file(path.join(this.app_root, "pkg.toml"))
+            return json_response(200, {
+                "ok": true,
+                "service": this.config.name,
+                "version": this.config.version,
+                "description": this.config.description,
+                "commands": [
+                    "help",
+                    "history",
+                    "read <path>",
+                    "list <path>",
+                    "get <url>",
+                    "run <bin> :: arg1 | arg2",
+                    "watch <bin> :: arg1 | arg2",
+                ],
+                "help": agent.help_text(),
+            })
+        },
+        "chat_handler": fn(req) {
+            if req.method != "POST" {
+                return json_response(405, {
+                    "ok": false,
+                    "error": "method not allowed",
+                })
+            }
+
+            try {
+                payload = parse_chat_payload(req)
+                query = payload.message.trim()
+                history = default_history(payload.history)
+
+                if query == "" {
+                    return json_response(400, {
+                        "ok": false,
+                        "error": "message is required",
+                    })
+                }
+
+                step = agent.plan(query)
+                observation = agent.act(step, history)
+                answer = agent.finalize(step, observation)
+
+                next_history = push(history, {"role": "user", "content": query})
+                next_history = push(next_history, {"role": "assistant", "content": answer})
+
+                return json_response(200, {
+                    "ok": observation.ok,
+                    "service": this.config.name,
+                    "version": this.config.version,
+                    "thought": step.thought,
+                    "action": step.action,
+                    "tool": step.tool,
+                    "observation": observation.summary,
+                    "answer": answer,
+                    "history": next_history,
+                })
+            } catch err {
+                return json_response(400, {
+                    "ok": false,
+                    "error": "invalid request",
+                    "detail": err,
+                })
+            }
         }
-
-        step = agent.plan(query)
-        observation = agent.act(step, history)
-        answer = agent.finalize(step, observation)
-
-        next_history = push(history, {"role": "user", "content": query})
-        next_history = push(next_history, {"role": "assistant", "content": answer})
-
-        return json_response(200, {
-            "ok": observation.ok,
-            "service": str(config.name),
-            "version": str(config.version),
-            "thought": step.thought,
-            "action": step.action,
-            "tool": step.tool,
-            "observation": observation.summary,
-            "answer": answer,
-            "history": next_history,
-        })
-    } catch err {
-        return json_response(400, {
-            "ok": false,
-            "error": "invalid request",
-            "detail": err,
-        })
     }
+    return instance
 }
 
-export health_handler
-export tools_handler
-export chat_handler
+export new_http_server

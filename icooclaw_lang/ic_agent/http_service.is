@@ -1,13 +1,16 @@
 import "./modules/http_api.is" as api
 
-pkg = toml.parse_file("./ic_agent/pkg.toml")
+app_root = path.dir(os.script_path())
+pkg = toml.parse_file(path.join(app_root, "pkg.toml"))
 default_addr = os.flag_or("addr", str(pkg.service.addr))
 
 server = http.server.new()
-server.route_file("GET", "/", "./ic_agent/web/index.html", "text/html; charset=utf-8")
-server.handle("GET", "/health", api.health_handler)
-server.handle("GET", "/tools", api.tools_handler)
-server.handle("POST", "/chat", api.chat_handler)
+http_server = api.new_http_server(pkg)
+
+server.route_file("GET", "/", path.join(app_root, "web", "index.html"), "text/html; charset=utf-8")
+server.handle("GET", "/health", http_server.health_handler)
+server.handle("GET", "/tools", http_server.tools_handler)
+server.handle("POST", "/chat", http_server.chat_handler)
 server.not_found({
     "status_code": 404,
     "body": json.stringify({
