@@ -260,6 +260,59 @@ for i in range(50) {
 	}
 }
 
+func TestAsyncPoolAndWaitGroup(t *testing.T) {
+	env, result := evalSource(t, `
+total = 0
+pool = async.pool(2)
+wg = async.wait_group()
+
+fn worker(v) {
+    total += v
+    wg.done()
+}
+
+for i in range(1, 5) {
+    wg.add(1)
+    pool.submit(worker, [i])
+}
+
+wg.wait()
+pool.wait()
+remaining = wg.count()
+pool_size = pool.size()
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	total, _ := env.Get("total")
+	if total.Inspect() != "10" {
+		t.Fatalf("expected total=10, got %s", total.Inspect())
+	}
+
+	remaining, _ := env.Get("remaining")
+	if remaining.Inspect() != "0" {
+		t.Fatalf("expected remaining=0, got %s", remaining.Inspect())
+	}
+
+	poolSize, _ := env.Get("pool_size")
+	if poolSize.Inspect() != "2" {
+		t.Fatalf("expected pool_size=2, got %s", poolSize.Inspect())
+	}
+}
+
+func TestWaitGroupRejectsNegativeCounter(t *testing.T) {
+	_, result := evalSource(t, `
+wg = async.wait_group()
+wg.done()
+`)
+
+	if !object.IsError(result) {
+		t.Fatalf("expected waitgroup negative counter error, got %#v", result)
+	}
+}
+
 func TestFSLibraryReadWriteAndStat(t *testing.T) {
 	dir := filepath.ToSlash(t.TempDir())
 	filePath := dir + "/sample.txt"

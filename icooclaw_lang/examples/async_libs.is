@@ -1,0 +1,21 @@
+# async demo
+
+total = 0
+pool = async.pool(2)
+wg = async.wait_group()
+
+fn worker(v) {
+    total += v
+    print("worker: " + str(v))
+    wg.done()
+}
+
+for i in range(1, 5) {
+    wg.add(1)
+    pool.submit(worker, [i])
+}
+
+wg.wait()
+pool.wait()
+
+print("total = " + str(total))

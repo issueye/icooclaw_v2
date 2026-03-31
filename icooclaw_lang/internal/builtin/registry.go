@@ -20,6 +20,7 @@ func buildBuiltins() map[string]object.Object {
 
 func libraryBuiltins() map[string]object.Object {
 	return map[string]object.Object{
+		"async":     newAsyncLib(),
 		"db":        newDBLib(),
 		"fs":        newFSLib(),
 		"http":      newHTTPLib(),

@@ -43,6 +43,23 @@ func hashArg(arg object.Object, message string) (*object.Hash, *object.Error) {
 	return hashObj, nil
 }
 
+func arrayArg(arg object.Object, message string) (*object.Array, *object.Error) {
+	arrayObj, ok := arg.(*object.Array)
+	if !ok {
+		return nil, object.NewError(0, message, arg.Type())
+	}
+	return arrayObj, nil
+}
+
+func callableArg(arg object.Object, message string) (object.Object, *object.Error) {
+	switch arg.(type) {
+	case *object.Function, *object.Builtin:
+		return arg, nil
+	default:
+		return nil, object.NewError(0, message, arg.Type())
+	}
+}
+
 func boolObject(v bool) *object.Boolean {
 	return object.BoolObject(v)
 }

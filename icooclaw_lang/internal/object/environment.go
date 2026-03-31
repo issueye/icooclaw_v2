@@ -292,9 +292,15 @@ func (e *Environment) Call(fn Object, args []Object, line int) Object {
 }
 
 func (e *Environment) Go(fn func()) {
-	e.runtime.wg.Add(1)
+	runtime := e.runtime
+	if runtime == nil {
+		go fn()
+		return
+	}
+
+	runtime.wg.Add(1)
 	go func() {
-		defer e.runtime.wg.Done()
+		defer runtime.wg.Done()
 		fn()
 	}()
 }

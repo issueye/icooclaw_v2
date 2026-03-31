@@ -192,6 +192,7 @@ export add
 
 当前 builtin 根对象：
 
+- `async`
 - `db`
 - `fs`
 - `http`
@@ -206,7 +207,52 @@ export add
 - `websocket`
 - `sse`
 
-### 6.1 fs
+### 6.1 async
+
+| API | 签名 | 返回值 |
+| --- | --- | --- |
+| `async.pool` | `async.pool(size)` | `HASH` |
+| `async.wait_group` | `async.wait_group()` | `HASH` |
+
+`async.pool(size)` 返回池对象，当前支持：
+
+| API | 签名 | 说明 |
+| --- | --- | --- |
+| `pool.submit` | `pool.submit(fn)` / `pool.submit(fn, [args])` | 提交任务到受限并发池 |
+| `pool.wait` | `pool.wait()` | 等待池内任务全部完成 |
+| `pool.size` | `pool.size()` | 返回池容量 |
+
+`async.wait_group()` 返回 waitgroup 对象，当前支持：
+
+| API | 签名 | 说明 |
+| --- | --- | --- |
+| `wg.add` | `wg.add(n)` | 增加计数器 |
+| `wg.done` | `wg.done()` | 计数器减一 |
+| `wg.wait` | `wg.wait()` | 等待计数器归零 |
+| `wg.count` | `wg.count()` | 返回当前计数 |
+
+示例：
+
+```is
+total = 0
+pool = async.pool(2)
+wg = async.wait_group()
+
+fn worker(v) {
+    total += v
+    wg.done()
+}
+
+for i in range(1, 5) {
+    wg.add(1)
+    pool.submit(worker, [i])
+}
+
+wg.wait()
+pool.wait()
+```
+
+### 6.2 fs
 
 | API | 签名 | 返回值 |
 | --- | --- | --- |
@@ -232,7 +278,7 @@ export add
 }
 ```
 
-### 6.2 json
+### 6.3 json
 
 | API | 签名 | 返回值 |
 | --- | --- | --- |
@@ -240,7 +286,7 @@ export add
 | `json.stringify` | `json.stringify(value)` | `STRING` |
 | `json.stringify_pretty` | `json.stringify_pretty(value)` | `STRING` |
 
-### 6.3 yaml
+### 6.4 yaml
 
 | API | 签名 | 返回值 |
 | --- | --- | --- |
@@ -254,7 +300,7 @@ export add
 - `yaml.parse_file` 适合读取项目配置或模板文件
 - `yaml.stringify` 适合把运行时对象导出为 YAML 文本
 
-### 6.4 time
+### 6.5 time
 
 | API | 签名 |
 | --- | --- |
@@ -284,7 +330,7 @@ export add
 }
 ```
 
-### 6.5 os
+### 6.6 os
 
 | API | 签名 |
 | --- | --- |
@@ -317,7 +363,7 @@ os.has_flag("verbose") # true
 os.script_path()       # "demo.is"
 ```
 
-### 6.6 path
+### 6.7 path
 
 | API | 签名 |
 | --- | --- |
@@ -327,7 +373,7 @@ os.script_path()       # "demo.is"
 | `path.dir` | `path.dir(path_value)` |
 | `path.clean` | `path.clean(path_value)` |
 
-### 6.7 exec
+### 6.8 exec
 
 | API | 签名 |
 | --- | --- |
@@ -393,7 +439,7 @@ while true {
 print(proc.wait())
 ```
 
-### 6.8 crypto
+### 6.9 crypto
 
 | API | 签名 |
 | --- | --- |
@@ -405,7 +451,7 @@ print(proc.wait())
 
 当前 crypto API 都以字符串为输入，并返回字符串。
 
-### 6.9 log
+### 6.10 log
 
 | API | 签名 |
 | --- | --- |
@@ -433,7 +479,7 @@ JSON 模式日志格式：
 {"timestamp":"2026-03-30T20:00:00+08:00","level":"INFO","message":"hello","fields":{"request_id":"req-1"}}
 ```
 
-### 6.10 http
+### 6.11 http
 
 结构：
 
@@ -535,7 +581,7 @@ handler 返回值规则：
 }
 ```
 
-### 6.11 websocket
+### 6.12 websocket
 
 结构：
 
@@ -602,7 +648,7 @@ fn ws_handler(req, socket) {
 }
 ```
 
-### 6.12 sse
+### 6.13 sse
 
 结构：
 
@@ -666,7 +712,7 @@ fn events(req, stream) {
 
 `sse.server.stats()` 的结构与 `websocket.server.stats()` 相同。
 
-### 6.13 db
+### 6.14 db
 
 结构：
 
