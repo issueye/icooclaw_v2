@@ -1,0 +1,35 @@
+import "./modules/agent_tools.is" as agent
+
+history = []
+
+print("icooclaw_agent lite")
+print("type 'help' for commands, 'exit' to quit")
+print("empty input also exits so piped runs can terminate cleanly")
+
+while true {
+    query = input("agent> ").trim()
+
+    if query == "" {
+        print("bye")
+        break
+    }
+
+    if query.lower() == "exit" {
+        print("bye")
+        break
+    }
+
+    history = push(history, {"role": "user", "content": query})
+
+    step = agent.plan(query)
+    print("Thought: " + step.thought)
+    print("Action: " + step.action)
+
+    observation = agent.act(step, history)
+    print("Observation: " + observation.summary)
+
+    answer = agent.finalize(step, observation)
+    print("Final:\n" + answer)
+
+    history = push(history, {"role": "assistant", "content": answer})
+}

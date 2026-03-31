@@ -6,9 +6,27 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/issueye/icooclaw_lang/internal/object"
 )
+
+var (
+	stdinReaderMu sync.Mutex
+	stdinReader   *bufio.Reader
+	stdinSource   *os.File
+)
+
+func currentStdinReader() *bufio.Reader {
+	stdinReaderMu.Lock()
+	defer stdinReaderMu.Unlock()
+
+	if stdinReader == nil || stdinSource != os.Stdin {
+		stdinSource = os.Stdin
+		stdinReader = bufio.NewReader(os.Stdin)
+	}
+	return stdinReader
+}
 
 func coreBuiltins() map[string]object.Object {
 	return map[string]object.Object{
@@ -141,8 +159,7 @@ func coreBuiltins() map[string]object.Object {
 			if len(args) == 1 {
 				fmt.Print(args[0].Inspect())
 			}
-			reader := bufio.NewReader(os.Stdin)
-			line, _ := reader.ReadString('\n')
+			line, _ := currentStdinReader().ReadString('\n')
 			return &object.String{Value: strings.TrimSpace(line)}
 		}),
 		"push": builtinFunc(func(env *object.Environment, args ...object.Object) object.Object {

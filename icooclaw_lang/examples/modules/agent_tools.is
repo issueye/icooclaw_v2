@@ -1,0 +1,271 @@
+fn text_after_first_space(text) {
+    parts = text.trim().split(" ")
+    if len(parts) <= 1 {
+        return ""
+    }
+
+    result = ""
+    index = 0
+    for part in parts {
+        if index > 0 {
+            if result != "" {
+                result = result + " "
+            }
+            result = result + part
+        }
+        index += 1
+    }
+    return result
+}
+
+fn split_pipe_args(text) {
+    raw_parts = text.split("|")
+    result = []
+    for part in raw_parts {
+        trimmed = part.trim()
+        if trimmed != "" {
+            result = push(result, trimmed)
+        }
+    }
+    return result
+}
+
+fn summarize_history(history) {
+    if len(history) == 0 {
+        return "history is empty"
+    }
+
+    lines = []
+    for item in history {
+        lines = push(lines, item.role + ": " + item.content)
+    }
+    return lines.join("\n")
+}
+
+fn collect_exec_lines(proc, lines) {
+    line = proc.read()
+    if line == null {
+        return lines
+    }
+    next_lines = push(lines, "[" + line.stream + "] " + line.text)
+    return collect_exec_lines(proc, next_lines)
+}
+
+fn help_text() {
+    return [
+        "Commands:",
+        "  help                 show this help",
+        "  history              show dialogue history",
+        "  read <path>          read a file",
+        "  list <path>          list a directory",
+        "  get <url>            fetch url with http.client.get",
+        "  run <bin> :: a | b   run exec command",
+        "  watch <bin> :: a | b start command and stream output",
+        "  exit                 quit",
+    ].join("\n")
+}
+
+fn plan(query) {
+    normalized = query.trim()
+    lower = normalized.lower()
+
+    if lower == "help" {
+        return {
+            "tool": "help",
+            "thought": "The user needs the supported command surface.",
+            "action": "Render built-in help text.",
+            "target": "",
+            "args": [],
+        }
+    }
+
+    if lower == "history" {
+        return {
+            "tool": "history",
+            "thought": "The user wants the current session transcript.",
+            "action": "Summarize in-memory history.",
+            "target": "",
+            "args": [],
+        }
+    }
+
+    if lower.starts_with("read ") {
+        return {
+            "tool": "fs.read_file",
+            "thought": "The request maps to a direct file read.",
+            "action": "Use fs.read_file on the provided path.",
+            "target": text_after_first_space(normalized),
+            "args": [],
+        }
+    }
+
+    if lower.starts_with("list ") {
+        return {
+            "tool": "fs.read_dir",
+            "thought": "The request maps to a directory listing.",
+            "action": "Use fs.read_dir on the provided path.",
+            "target": text_after_first_space(normalized),
+            "args": [],
+        }
+    }
+
+    if lower.starts_with("get ") {
+        return {
+            "tool": "http.client.get",
+            "thought": "The request maps to an HTTP fetch.",
+            "action": "Use http.client.get on the target URL.",
+            "target": text_after_first_space(normalized),
+            "args": [],
+        }
+    }
+
+    if lower.starts_with("run ") {
+        payload = text_after_first_space(normalized)
+        parts = payload.split("::")
+        command_name = parts[0].trim()
+        command_args = []
+        if len(parts) > 1 {
+            command_args = split_pipe_args(parts[1].trim())
+        }
+        return {
+            "tool": "exec.command",
+            "thought": "The request maps to a native process execution.",
+            "action": "Run the requested command with explicit args.",
+            "target": command_name,
+            "args": command_args,
+        }
+    }
+
+    if lower.starts_with("watch ") {
+        payload = text_after_first_space(normalized)
+        parts = payload.split("::")
+        command_name = parts[0].trim()
+        command_args = []
+        if len(parts) > 1 {
+            command_args = split_pipe_args(parts[1].trim())
+        }
+        return {
+            "tool": "exec.start",
+            "thought": "The request needs streaming process output instead of a buffered result.",
+            "action": "Start the requested command and read lines until the process exits.",
+            "target": command_name,
+            "args": command_args,
+        }
+    }
+
+    return {
+        "tool": "respond",
+        "thought": "No tool-specific command matched, so fall back to a lightweight assistant response.",
+        "action": "Return guidance and show supported commands.",
+        "target": normalized,
+        "args": [],
+    }
+}
+
+fn act(step, history) {
+    if step.tool == "help" {
+        return {
+            "ok": true,
+            "summary": help_text(),
+            "detail": help_text(),
+        }
+    }
+
+    if step.tool == "history" {
+        summary = summarize_history(history)
+        return {
+            "ok": true,
+            "summary": summary,
+            "detail": summary,
+        }
+    }
+
+    if step.tool == "fs.read_file" {
+        content = fs.read_file(step.target)
+        return {
+            "ok": true,
+            "summary": "Read file: " + step.target,
+            "detail": content,
+        }
+    }
+
+    if step.tool == "fs.read_dir" {
+        entries = fs.read_dir(step.target)
+        names = []
+        for entry in entries {
+            suffix = ""
+            if entry.is_dir {
+                suffix = "/"
+            }
+            names = push(names, entry.name + suffix)
+        }
+        return {
+            "ok": true,
+            "summary": "Listed directory: " + step.target,
+            "detail": names.join("\n"),
+        }
+    }
+
+    if step.tool == "http.client.get" {
+        resp = http.client.get(step.target)
+        preview = resp.body
+        return {
+            "ok": true,
+            "summary": "Fetched " + step.target + " status=" + str(resp.status_code),
+            "detail": preview,
+        }
+    }
+
+    if step.tool == "exec.command" {
+        result = exec.command(step.target, step.args)
+        detail = result.stdout
+        if result.stderr != "" {
+            if detail != "" {
+                detail = detail + "\n"
+            }
+            detail = detail + result.stderr
+        }
+        return {
+            "ok": result.ok,
+            "summary": "Ran command: " + result.command + " exit=" + str(result.code),
+            "detail": detail.trim(),
+        }
+    }
+
+    if step.tool == "exec.start" {
+        proc = exec.start(step.target, step.args)
+        lines = collect_exec_lines(proc, [])
+        result = proc.wait()
+        detail = lines.join("\n")
+        if result.stderr != "" && detail == "" {
+            detail = result.stderr.trim()
+        }
+        return {
+            "ok": result.ok,
+            "summary": "Streamed command: " + result.command + " exit=" + str(result.code),
+            "detail": detail,
+        }
+    }
+
+    return {
+        "ok": true,
+        "summary": "No tool execution performed.",
+        "detail": "Try: help, read <path>, list <path>, get <url>, run <bin> :: arg1 | arg2, watch <bin> :: arg1 | arg2",
+    }
+}
+
+fn finalize(step, observation) {
+    if step.tool == "respond" {
+        return "I can help with local tools. Try: help, read <path>, list <path>, get <url>, run <bin> :: arg1 | arg2, watch <bin> :: arg1 | arg2"
+    }
+    if observation.ok {
+        return observation.detail
+    }
+    return "Tool execution failed: " + observation.summary + "\n" + observation.detail
+}
+
+export help_text
+export plan
+export act
+export finalize
+export summarize_history
