@@ -9,6 +9,9 @@ type Lexer struct {
 	ch           byte
 	line         int
 	column       int
+	pendingNL    bool
+	pendingLine  int
+	pendingCol   int
 }
 
 func New(input string) *Lexer {
@@ -38,8 +41,26 @@ func (l *Lexer) peekChar() byte {
 func (l *Lexer) NextToken() Token {
 	var tok Token
 
-	l.skipWhitespace()
-	l.skipComment()
+	if l.pendingNL {
+		l.pendingNL = false
+		return Token{
+			Type:    NEWLINE,
+			Literal: "\n",
+			Line:    l.pendingLine,
+			Column:  l.pendingCol,
+		}
+	}
+
+	l.skipIgnored()
+	if l.pendingNL {
+		l.pendingNL = false
+		return Token{
+			Type:    NEWLINE,
+			Literal: "\n",
+			Line:    l.pendingLine,
+			Column:  l.pendingCol,
+		}
+	}
 
 	tok.Line = l.line
 	tok.Column = l.column
@@ -246,13 +267,75 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
-func (l *Lexer) skipComment() {
-	if l.ch == '#' {
+func (l *Lexer) skipIgnored() {
+	for {
+		l.skipWhitespace()
+		if !l.skipComment() {
+			return
+		}
+		if l.pendingNL {
+			return
+		}
+	}
+}
+
+func (l *Lexer) skipComment() bool {
+	if l.ch == '#' || (l.ch == '/' && l.peekChar() == '/') {
 		for l.ch != '\n' && l.ch != 0 {
 			l.readChar()
 		}
-		l.skipWhitespace()
+		return true
 	}
+
+	if l.ch == '/' && l.peekChar() == '*' {
+		l.skipBlockComment()
+		return true
+	}
+
+	return false
+}
+
+func (l *Lexer) skipBlockComment() {
+	l.readCommentChar()
+	l.readCommentChar()
+
+	sawNewline := false
+	firstNewlineLine := 0
+	firstNewlineColumn := 0
+
+	for l.ch != 0 {
+		if l.ch == '\n' {
+			if !sawNewline {
+				sawNewline = true
+				firstNewlineLine = l.line
+				firstNewlineColumn = l.column
+			}
+			l.readCommentChar()
+			continue
+		}
+
+		if l.ch == '*' && l.peekChar() == '/' {
+			l.readCommentChar()
+			l.readCommentChar()
+			break
+		}
+
+		l.readCommentChar()
+	}
+
+	if sawNewline {
+		l.pendingNL = true
+		l.pendingLine = firstNewlineLine
+		l.pendingCol = firstNewlineColumn
+	}
+}
+
+func (l *Lexer) readCommentChar() {
+	if l.ch == '\n' {
+		l.line++
+		l.column = 0
+	}
+	l.readChar()
 }
 
 func isLetter(ch byte) bool {

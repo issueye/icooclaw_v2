@@ -210,6 +210,31 @@ same = type(42) == type_of(42)
 	}
 }
 
+func TestCommentsAreIgnoredByLexerAndParser(t *testing.T) {
+	env, result := evalSource(t, `
+x = 1 // first value
+# second style
+/* block
+comment */
+y = 2
+sum = x + y /* inline block */
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	value, ok := env.Get("sum")
+	if !ok {
+		t.Fatal("sum not found in environment")
+	}
+
+	intValue, ok := value.(*object.Integer)
+	if !ok || intValue.Value != 3 {
+		t.Fatalf("expected sum=3, got %s", value.Inspect())
+	}
+}
+
 func TestGoStatementDrainsGoroutinesAfterWait(t *testing.T) {
 	baseline := runtime.NumGoroutine()
 
