@@ -6,3 +6,5 @@
 icooclaw_agent/.gocache/*
 icooclaw_lang/.gocache/*
 icooclaw_lang/.gomodcache/*
+icooclaw_lang/vscode-extension/*.vsix
+icooclaw_lang/vscode-extension/node_modules/*

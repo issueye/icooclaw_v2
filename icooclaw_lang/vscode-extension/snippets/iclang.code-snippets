@@ -1,0 +1,68 @@
+{
+  "Function": {
+    "prefix": "fn",
+    "body": [
+      "fn ${1:name}(${2:args}) {",
+      "    ${3:return null}",
+      "}"
+    ],
+    "description": "Create a function"
+  },
+  "If Else": {
+    "prefix": "if",
+    "body": [
+      "if ${1:condition} {",
+      "    ${2}",
+      "} else {",
+      "    ${3}",
+      "}"
+    ],
+    "description": "Create an if/else block"
+  },
+  "For Range": {
+    "prefix": "forr",
+    "body": [
+      "for ${1:item} in range(${2:10}) {",
+      "    ${3}",
+      "}"
+    ],
+    "description": "Iterate with range"
+  },
+  "While": {
+    "prefix": "while",
+    "body": [
+      "while ${1:condition} {",
+      "    ${2}",
+      "}"
+    ],
+    "description": "Create a while loop"
+  },
+  "Match": {
+    "prefix": "match",
+    "body": [
+      "match ${1:value} {",
+      "    ${2:pattern} -> ${3:result}",
+      "    _ -> ${4:fallback}",
+      "}"
+    ],
+    "description": "Create a match block"
+  },
+  "Import Module": {
+    "prefix": "import",
+    "body": [
+      "import \"${1:./modules/math.is}\""
+    ],
+    "description": "Import a module"
+  },
+  "Try Catch": {
+    "prefix": "try",
+    "body": [
+      "try {",
+      "    ${1}",
+      "} catch (${2:err}) {",
+      "    ${3:print(err)}",
+      "}"
+    ],
+    "description": "Create a try/catch block"
+  }
+}

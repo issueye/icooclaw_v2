@@ -1,0 +1,214 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "iclang",
+  "scopeName": "source.iclang",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#constants"
+    },
+    {
+      "include": "#function-definition"
+    },
+    {
+      "include": "#imports"
+    },
+    {
+      "include": "#builtins"
+    },
+    {
+      "include": "#member-access"
+    },
+    {
+      "include": "#function-call"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#punctuation"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.iclang",
+          "match": "#.*$"
+        },
+        {
+          "name": "comment.line.double-slash.iclang",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.iclang",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.iclang",
+          "begin": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.iclang"
+            }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.iclang"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.iclang",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.iclang",
+          "match": "\\b(fn|return|if|else|for|while|match|break|continue|const|import|export|try|catch|go|select|interface|type|in)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.iclang",
+          "match": "\\b(null|true|false)\\b"
+        },
+        {
+          "name": "constant.language.placeholder.iclang",
+          "match": "\\b_\\b"
+        }
+      ]
+    },
+    "function-definition": {
+      "patterns": [
+        {
+          "match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.function.iclang"
+            },
+            "2": {
+              "name": "entity.name.function.iclang"
+            }
+          }
+        }
+      ]
+    },
+    "imports": {
+      "patterns": [
+        {
+          "match": "\\b(import|from|export)\\b",
+          "name": "keyword.control.import.iclang"
+        },
+        {
+          "name": "string.quoted.double.path.iclang",
+          "match": "\"(?:\\\\.|[^\"])*\\.is\""
+        }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.iclang",
+          "match": "\\b(print|len|range|type|type_of|str|int|float|input|push|pop|abs|keys|values|read_file|write_file)\\b(?=\\s*\\()"
+        },
+        {
+          "name": "support.type.library.iclang",
+          "match": "\\b(db|fs|http|json|log|time|os|path|crypto|websocket|sse|toml|exec)\\b(?=\\s*\\.)"
+        }
+      ]
+    },
+    "member-access": {
+      "patterns": [
+        {
+          "match": "\\.\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "variable.other.member.iclang"
+            }
+          }
+        }
+      ]
+    },
+    "function-call": {
+      "patterns": [
+        {
+          "name": "entity.name.function.call.iclang",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.iclang",
+          "match": "\\b\\d+(?:\\.\\d+)?\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.iclang",
+          "match": "==|!=|<=|>=|&&|\\|\\||\\+=|-=|\\*=|/=|->|=|\\+|-|\\*|/|%|!|<|>|\\|"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.separator.iclang",
+          "match": "[,.:;]"
+        },
+        {
+          "name": "punctuation.section.braces.begin.iclang",
+          "match": "\\{"
+        },
+        {
+          "name": "punctuation.section.braces.end.iclang",
+          "match": "\\}"
+        },
+        {
+          "name": "punctuation.section.brackets.begin.iclang",
+          "match": "\\["
+        },
+        {
+          "name": "punctuation.section.brackets.end.iclang",
+          "match": "\\]"
+        },
+        {
+          "name": "punctuation.section.parens.begin.iclang",
+          "match": "\\("
+        },
+        {
+          "name": "punctuation.section.parens.end.iclang",
+          "match": "\\)"
+        }
+      ]
+    }
+  }
+}
