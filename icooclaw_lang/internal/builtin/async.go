@@ -5,6 +5,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/issueye/icooclaw_lang/internal/memoryguard"
 	"github.com/issueye/icooclaw_lang/internal/object"
 )
 
@@ -22,10 +23,43 @@ type asyncWaitGroup struct {
 
 func newAsyncLib() *object.Hash {
 	return hashObject(map[string]object.Object{
-		"pool": builtinFunc(asyncPoolNew),
-		"wait_group": builtinFunc(asyncWaitGroupNew),
-		"runtime_concurrency": builtinFunc(asyncRuntimeConcurrency),
+		"pool":                    builtinFunc(asyncPoolNew),
+		"wait_group":              builtinFunc(asyncWaitGroupNew),
+		"runtime_concurrency":     builtinFunc(asyncRuntimeConcurrency),
 		"set_runtime_concurrency": builtinFunc(asyncSetRuntimeConcurrency),
+		"runtime_stats":           builtinFunc(asyncRuntimeStats),
+	})
+}
+
+func asyncRuntimeStats(env *object.Environment, args ...object.Object) object.Object {
+	if len(args) != 0 {
+		return object.NewError(0, "wrong number of arguments. got=%d, want=0", len(args))
+	}
+	if env == nil || env.Runtime() == nil {
+		return object.NewError(0, "runtime is not available")
+	}
+
+	rtStats := env.Runtime().Stats()
+	memStats := memoryguard.CurrentStats()
+
+	return hashObject(map[string]object.Object{
+		"max_concurrency":      &object.Integer{Value: int64(rtStats.MaxConcurrency)},
+		"worker_count":         &object.Integer{Value: int64(rtStats.WorkerCount)},
+		"queue_length":         &object.Integer{Value: int64(rtStats.QueueLength)},
+		"is_running":           object.BoolObject(rtStats.IsRunning),
+		"is_stopping":          object.BoolObject(rtStats.IsStopping),
+		"memory_limit_bytes":   &object.Integer{Value: memStats.LimitBytes},
+		"memory_limit_mb":      &object.Integer{Value: int64(memStats.LimitBytes / 1024 / 1024)},
+		"memory_limit_percent": &object.Integer{Value: memStats.LimitPercent},
+		"alloc_bytes":          &object.Integer{Value: int64(memStats.AllocBytes)},
+		"alloc_mb":             &object.Integer{Value: int64(memStats.AllocBytes / 1024 / 1024)},
+		"heap_alloc_bytes":     &object.Integer{Value: int64(memStats.HeapAllocBytes)},
+		"heap_alloc_mb":        &object.Integer{Value: int64(memStats.HeapAllocBytes / 1024 / 1024)},
+		"sys_bytes":            &object.Integer{Value: int64(memStats.SysBytes)},
+		"sys_mb":               &object.Integer{Value: int64(memStats.SysBytes / 1024 / 1024)},
+		"host_total_bytes":     &object.Integer{Value: int64(memStats.HostTotalBytes)},
+		"host_total_mb":        &object.Integer{Value: int64(memStats.HostTotalBytes / 1024 / 1024)},
+		"host_usage_percent":   &object.Integer{Value: memStats.HostUsagePercent},
 	})
 }
 

@@ -20,6 +20,7 @@ var (
 	limitBytes          atomic.Int64
 	checkCounter        atomic.Uint64
 	hostMemoryTotalFunc = HostMemoryTotalBytes
+	limitPercentValue   atomic.Int64
 )
 
 func ResolveLimitBytes(cliMaxMemoryMB, cliMaxMemoryPercent int) (int64, error) {
@@ -69,6 +70,7 @@ func resolveLimitBytesFromPercent(percent int) (int64, error) {
 func Activate(limit int64) func() {
 	if limit <= 0 {
 		limitBytes.Store(0)
+		limitPercentValue.Store(0)
 		checkCounter.Store(0)
 		return func() {}
 	}
@@ -79,9 +81,18 @@ func Activate(limit int64) func() {
 
 	return func() {
 		limitBytes.Store(0)
+		limitPercentValue.Store(0)
 		checkCounter.Store(0)
 		debug.SetMemoryLimit(previous)
 	}
+}
+
+func SetActivePercent(percent int) {
+	if percent <= 0 {
+		limitPercentValue.Store(0)
+		return
+	}
+	limitPercentValue.Store(int64(percent))
 }
 
 func Checkpoint() error {
@@ -130,4 +141,36 @@ func CheckNow() error {
 
 func bytesToMB(v uint64) uint64 {
 	return v / 1024 / 1024
+}
+
+type Stats struct {
+	LimitBytes       int64
+	LimitPercent     int64
+	AllocBytes       uint64
+	HeapAllocBytes   uint64
+	SysBytes         uint64
+	HostTotalBytes   uint64
+	HostUsagePercent int64
+}
+
+func CurrentStats() Stats {
+	var runtimeStats runtime.MemStats
+	runtime.ReadMemStats(&runtimeStats)
+
+	stats := Stats{
+		LimitBytes:     limitBytes.Load(),
+		LimitPercent:   limitPercentValue.Load(),
+		AllocBytes:     runtimeStats.Alloc,
+		HeapAllocBytes: runtimeStats.HeapAlloc,
+		SysBytes:       runtimeStats.Sys,
+	}
+
+	if total, err := hostMemoryTotalFunc(); err == nil && total > 0 {
+		stats.HostTotalBytes = total
+		if stats.SysBytes > 0 {
+			stats.HostUsagePercent = int64((stats.SysBytes * 100) / total)
+		}
+	}
+
+	return stats
 }

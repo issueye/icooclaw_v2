@@ -151,6 +151,7 @@ func executeScriptSource(scriptPath, source string, scriptArgs []string, opts ru
 	if err != nil {
 		return err
 	}
+	memoryguard.SetActivePercent(effectiveMemoryPercent(opts))
 	restoreMemoryGuard := memoryguard.Activate(limitBytes)
 	defer restoreMemoryGuard()
 	if err := memoryguard.CheckNow(); err != nil {
@@ -192,6 +193,7 @@ func startRepl(opts runtimeOptions) {
 		fmt.Println("Error:", err)
 		return
 	}
+	memoryguard.SetActivePercent(effectiveMemoryPercent(opts))
 	restoreMemoryGuard := memoryguard.Activate(limitBytes)
 	defer restoreMemoryGuard()
 	if err := memoryguard.CheckNow(); err != nil {
@@ -264,6 +266,8 @@ func printHelp() {
 	fmt.Println()
 	fmt.Println("Built-in libraries:")
 	fmt.Println("  async, db, fs, http, json, toml, yaml, log, time, os, exec, path, crypto, websocket, sse")
+	fmt.Println("Runtime helpers:")
+	fmt.Println("  async.runtime_concurrency(), async.set_runtime_concurrency(n), async.runtime_stats()")
 	fmt.Println("Environment:")
 	fmt.Println("  ICLANG_MAX_GOROUTINES, ICLANG_MAX_MEMORY_MB, ICLANG_MAX_MEMORY_PERCENT")
 	fmt.Println()
@@ -382,4 +386,24 @@ func isVersionArg(args []string) bool {
 		}
 	}
 	return false
+}
+
+func effectiveMemoryPercent(opts runtimeOptions) int {
+	if opts.MaxMemoryMB > 0 {
+		return 0
+	}
+	if opts.MaxMemoryPercent > 0 {
+		return opts.MaxMemoryPercent
+	}
+	if value := os.Getenv("ICLANG_MAX_MEMORY_PERCENT"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 && parsed <= 100 {
+			return parsed
+		}
+	}
+	if value := os.Getenv("ICLANG_MAX_MEMORY_MB"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			return 0
+		}
+	}
+	return 90
 }

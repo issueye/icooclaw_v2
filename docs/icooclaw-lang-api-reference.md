@@ -274,6 +274,7 @@ user.rename("codex")
 | `async.wait_group` | `async.wait_group()` | `HASH` |
 | `async.runtime_concurrency` | `async.runtime_concurrency()` | `INTEGER` |
 | `async.set_runtime_concurrency` | `async.set_runtime_concurrency(size)` | `INTEGER` |
+| `async.runtime_stats` | `async.runtime_stats()` | `HASH` |
 
 `async.pool(size)` 返回池对象，当前支持：
 
@@ -319,6 +320,30 @@ pool.wait()
 
 - runtime 默认并发度会读取环境变量 `ICLANG_MAX_GOROUTINES`
 - `async.set_runtime_concurrency(n)` 会修改当前 runtime 后续启动 worker 时的默认并发度
+
+`async.runtime_stats()` 返回结构：
+
+```is
+{
+    "max_concurrency": 4,
+    "worker_count": 4,
+    "queue_length": 0,
+    "is_running": true,
+    "is_stopping": false,
+    "memory_limit_bytes": 9663676416,
+    "memory_limit_mb": 9216,
+    "memory_limit_percent": 90,
+    "alloc_bytes": 1048576,
+    "alloc_mb": 1,
+    "heap_alloc_bytes": 1048576,
+    "heap_alloc_mb": 1,
+    "sys_bytes": 7340032,
+    "sys_mb": 7,
+    "host_total_bytes": 10737418240,
+    "host_total_mb": 10240,
+    "host_usage_percent": 0
+}
+```
 
 ### 6.2 fs
 

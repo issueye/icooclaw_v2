@@ -228,6 +228,7 @@ async.pool(size)
 async.wait_group()
 async.runtime_concurrency()
 async.set_runtime_concurrency(size)
+async.runtime_stats()
 ```
 
 `async.pool(size)` 返回池对象：
@@ -266,6 +267,19 @@ wg.count()
 - 如果没有显式配置，默认阈值是主机总内存的 `90%`
 - 优先级是 MB 绝对值优先于百分比阈值
 - 当内存超过限制时，运行会返回 `memory limit exceeded` 错误
+
+`async.runtime_stats()` 返回运行态资源信息，至少包含：
+
+- `max_concurrency`
+- `worker_count`
+- `queue_length`
+- `memory_limit_mb`
+- `memory_limit_percent`
+- `alloc_mb`
+- `heap_alloc_mb`
+- `sys_mb`
+- `host_total_mb`
+- `host_usage_percent`
 
 ### 5.2 fs
 
@@ -861,6 +875,16 @@ CLI 运行时保护示例：
 ```bash
 iclang run --max-goroutines 4 --max-memory-percent 90 demo.is
 demo.exe --max-memory-mb 256 input.txt
+```
+
+运行态观测示例：
+
+```is
+stats = async.runtime_stats()
+print("pool=" + stats.max_concurrency.to_string())
+print("queue=" + stats.queue_length.to_string())
+print("alloc_mb=" + stats.alloc_mb.to_string())
+print("limit_percent=" + stats.memory_limit_percent.to_string())
 ```
 
 ## 7. 不要这样生成

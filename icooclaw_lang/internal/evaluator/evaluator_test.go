@@ -811,6 +811,32 @@ after = async.runtime_concurrency()
 	}
 }
 
+func TestAsyncRuntimeStatsExposeConcurrencyAndMemoryFields(t *testing.T) {
+	env, result := evalSource(t, `
+async.set_runtime_concurrency(3)
+stats = async.runtime_stats()
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	stats, _ := env.Get("stats")
+	hash, ok := stats.(*object.Hash)
+	if !ok {
+		t.Fatalf("expected stats to be HASH, got %T", stats)
+	}
+
+	if hash.Pairs["max_concurrency"].Value.Inspect() != "3" {
+		t.Fatalf("expected max_concurrency=3, got %s", hash.Pairs["max_concurrency"].Value.Inspect())
+	}
+	for _, key := range []string{"worker_count", "queue_length", "memory_limit_mb", "alloc_mb", "sys_mb"} {
+		if _, ok := hash.Pairs[key]; !ok {
+			t.Fatalf("expected runtime stats to contain %s", key)
+		}
+	}
+}
+
 func TestFSLibraryReadWriteAndStat(t *testing.T) {
 	dir := filepath.ToSlash(t.TempDir())
 	filePath := dir + "/sample.txt"

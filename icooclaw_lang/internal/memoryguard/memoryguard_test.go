@@ -85,3 +85,17 @@ func TestCheckNowReturnsErrorWhenLimitIsTooLow(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestCurrentStatsExposeConfiguredLimitPercent(t *testing.T) {
+	restore := Activate(1024)
+	defer restore()
+	SetActivePercent(90)
+
+	stats := CurrentStats()
+	if stats.LimitBytes != 1024 {
+		t.Fatalf("LimitBytes = %d, want 1024", stats.LimitBytes)
+	}
+	if stats.LimitPercent != 90 {
+		t.Fatalf("LimitPercent = %d, want 90", stats.LimitPercent)
+	}
+}

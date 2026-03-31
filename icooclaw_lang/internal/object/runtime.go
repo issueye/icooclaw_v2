@@ -23,6 +23,15 @@ type Runtime struct {
 	taskStopping   bool
 	workerWG       sync.WaitGroup
 	maxConcurrency int
+	workerCount    int
+}
+
+type RuntimeStats struct {
+	MaxConcurrency int
+	WorkerCount    int
+	QueueLength    int
+	IsRunning      bool
+	IsStopping     bool
 }
 
 const runtimeMaxGoroutinesEnv = "ICLANG_MAX_GOROUTINES"
@@ -38,7 +47,7 @@ func NewRuntime() *Runtime {
 	defaultCallerMu.RUnlock()
 
 	rt := &Runtime{
-		caller: caller,
+		caller:         caller,
 		maxConcurrency: resolveDefaultConcurrency(),
 	}
 	rt.taskCond = sync.NewCond(&rt.taskMu)
@@ -101,6 +110,7 @@ func (r *Runtime) startWorkersLocked() {
 	if workerCount <= 0 {
 		workerCount = 1
 	}
+	r.workerCount = workerCount
 
 	for i := 0; i < workerCount; i++ {
 		r.workerWG.Add(1)
@@ -146,7 +156,21 @@ func (r *Runtime) stopWorkers() {
 	r.taskQueue = nil
 	r.taskRunning = false
 	r.taskStopping = false
+	r.workerCount = 0
 	r.taskMu.Unlock()
+}
+
+func (r *Runtime) Stats() RuntimeStats {
+	r.taskMu.Lock()
+	defer r.taskMu.Unlock()
+
+	return RuntimeStats{
+		MaxConcurrency: r.maxConcurrency,
+		WorkerCount:    r.workerCount,
+		QueueLength:    len(r.taskQueue),
+		IsRunning:      r.taskRunning,
+		IsStopping:     r.taskStopping,
+	}
 }
 
 func max(a, b int) int {
