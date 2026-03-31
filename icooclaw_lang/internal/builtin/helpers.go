@@ -96,6 +96,10 @@ func objectFromNative(value interface{}) object.Object {
 		return &object.String{Value: v}
 	case bool:
 		return boolObject(v)
+	case int:
+		return &object.Integer{Value: int64(v)}
+	case int64:
+		return &object.Integer{Value: v}
 	case float64:
 		if float64(int64(v)) == v {
 			return &object.Integer{Value: int64(v)}

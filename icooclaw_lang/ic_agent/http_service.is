@@ -1,6 +1,7 @@
 import "./modules/http_api.is" as api
 
-addr = os.flag_or("addr", "127.0.0.1:8080")
+pkg = toml.parse_file("./ic_agent/pkg.toml")
+default_addr = os.flag_or("addr", str(pkg.service.addr))
 
 server = http.server.new()
 server.route_file("GET", "/", "./ic_agent/web/index.html", "text/html; charset=utf-8")
@@ -18,9 +19,10 @@ server.not_found({
     },
 })
 
-listen_addr = server.start(addr)
+listen_addr = server.start(default_addr)
 
-print("ic_agent http service")
+print(str(pkg.name) + " http service")
+print("version: " + str(pkg.version))
 print("addr: " + listen_addr)
 print("ui: " + server.url("/"))
 print("health: " + server.url("/health"))

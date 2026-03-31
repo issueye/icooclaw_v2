@@ -1,0 +1,19 @@
+name = "ic_agent"
+version = "0.1.0"
+entry = "./http_service.is"
+description = "Lightweight HTTP tool agent built with iclang."
+authors = ["issueye"]
+tags = ["agent", "http", "tools"]
+
+[service]
+addr = "127.0.0.1:8080"
+ui_title = "ic_agent"
+history_limit = 24
+
+[agent]
+mode = "tool-http"
+default_help = "help"
+
+[project]
+root = "./ic_agent"
+web_dir = "./ic_agent/web"
