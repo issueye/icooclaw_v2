@@ -50,6 +50,11 @@ decoded = json.parse(encoded)
 value = decoded.items[4]
 `
 
+const benchmarkRuntimeStatsProgram = `
+stats = async.runtime_stats()
+value = stats.max_concurrency
+`
+
 func BenchmarkEvalProgram(b *testing.B) {
 	program := mustParseBenchmarkProgram(b, benchmarkEvalProgram)
 
@@ -84,6 +89,21 @@ func BenchmarkEvalJSONRoundTrip(b *testing.B) {
 	program := mustParseBenchmarkProgram(b, benchmarkJSONProgram)
 
 	b.SetBytes(int64(len(benchmarkJSONProgram)))
+	b.ReportAllocs()
+	for b.Loop() {
+		env := object.NewEnvironment()
+		result := Eval(program, env)
+		env.Wait()
+		if object.IsError(result) {
+			b.Fatalf("unexpected eval error: %s", result.Inspect())
+		}
+	}
+}
+
+func BenchmarkEvalRuntimeStats(b *testing.B) {
+	program := mustParseBenchmarkProgram(b, benchmarkRuntimeStatsProgram)
+
+	b.SetBytes(int64(len(benchmarkRuntimeStatsProgram)))
 	b.ReportAllocs()
 	for b.Loop() {
 		env := object.NewEnvironment()

@@ -20,7 +20,7 @@
 | 标准库/内建库 | `9.1/10` | 文件、时间、路径、进程、日志、加密、HTTP、WebSocket、SSE、DB、JSON、TOML、YAML 已成体系，并支持 `__serde__` 字段标注与 schema 反序列化 |
 | CLI 与交付能力 | `8.7/10` | `run/build/init/repl/version`、单文件 bundle、Windows 构建脚本都已具备 |
 | 编辑器支持 | `7.4/10` | 已有 VS Code 语法高亮和 snippets，但还没有格式化、补全、诊断、LSP |
-| 测试与稳定性 | `8.7/10` | 词法/语法/求值/并发/数据库/流式协议/回归测试覆盖较好，新增了 parser 回归测试和对象方法/安全访问/serde 测试 |
+| 测试与稳定性 | `8.8/10` | 词法/语法/求值/并发/数据库/流式协议/回归测试覆盖较好，新增了 parser 回归测试、对象方法/安全访问/serde 测试，以及 parser/evaluator benchmark |
 | 文档一致性 | `8.5/10` | `api-reference`、`ai-api`、`help` 已补齐到当前实现，但仍缺少更系统的快速开始和语言规范文档 |
 
 ## 3. 已具备的闭环能力
@@ -32,6 +32,7 @@
 - `to_string()` 已作为通用方法下沉到所有运行时对象
 - runtime 统一协程池已经接管 `Environment.Go(...)`
 - CLI、REPL 和 bundled 可执行文件现在都支持可配置的内存上限保护，并支持按主机总内存百分比阈值控制
+- `async.runtime_stats()` 已可直接观察并发度、worker 数、队列长度和内存限制/占用
 - 对象方法体系已经形成闭环：匿名 `fn(...) {}`、`fn (u user) rename(...)`、`this` / `self` / receiver 名注入都可用
 - 对象与容器更新语义已经统一：变量、点字段、索引位都支持 `=`、复合赋值、`++`、`--`
 - 安全访问已经覆盖字段、方法、索引和更新场景，并验证了连续链式访问
@@ -70,10 +71,30 @@
 - 安全访问从只读扩展到了更新语义，例如 `obj?.field += 1`、`arr?[0]++`
 - 连续安全访问已可稳定支持 `user?.profile?.name`、`user?.get_profile()?.name`
 - JSON/YAML/TOML 已支持基于 `__serde__` 的字段标注和基于 `schema` 的反序列化字段回填
+- runtime 已支持 `async.runtime_stats()`，可以输出内存上限、当前内存、队列长度和 worker 状态
 
-## 5. 主要短板
+## 5. 性能快照
 
-### 5.1 还不是完整生态
+本轮在 Windows 10 / `Intel(R) Core(TM) i5-10500 CPU @ 3.10GHz` 环境下做了 focused benchmark，结果说明 parser 和常见 evaluator 路径仍处于可接受范围，新增的 runtime stats 读取开销也比较低。
+
+parser：
+
+- `BenchmarkLexProgram`：`7693 ns/op`，`16112 B/op`，`93 allocs/op`
+- `BenchmarkParseProgram`：`17487 ns/op`，`12720 B/op`，`255 allocs/op`
+- `BenchmarkParseLargeProgram`：`46200 ns/op`，`29992 B/op`，`649 allocs/op`
+
+evaluator：
+
+- `BenchmarkEvalProgram`：`269997 ns/op`，`17624 B/op`，`2021 allocs/op`
+- `BenchmarkEvalFunctionCalls`：`285580 ns/op`，`21036 B/op`，`2010 allocs/op`
+- `BenchmarkEvalJSONRoundTrip`：`11854 ns/op`，`6023 B/op`，`102 allocs/op`
+- `BenchmarkEvalRuntimeStats`：`18098 ns/op`，`4664 B/op`，`57 allocs/op`
+- `BenchmarkEvalModuleImportCold`：`61978 ns/op`，`10630 B/op`，`129 allocs/op`
+- `BenchmarkEvalModuleImportWarm`：`2803 ns/op`，`1594 B/op`，`18 allocs/op`
+
+## 6. 主要短板
+
+### 6.1 还不是完整生态
 
 目前更像“带丰富内建库的嵌入式脚本运行时”，还不是成熟语言生态。缺的不是能不能跑，而是：
 
@@ -82,7 +103,7 @@
 - 还没有依赖管理或包仓库
 - 还没有正式语言规范或兼容性承诺
 
-### 5.2 文档一致性已改善，但还不够体系化
+### 6.2 文档一致性已改善，但还不够体系化
 
 前一轮存在的典型问题主要是实现和文档漂移：
 
@@ -96,15 +117,15 @@
 - 独立的对象模型和方法系统说明
 - 独立的序列化标注与 schema 反序列化指南
 
-### 5.3 并发与原生库还有继续深化空间
+### 6.3 并发与原生库还有继续深化空间
 
 当前并发模型已经可用，但还偏“基础可控”，例如：
 
 - `async.pool` 还没有结果收集
 - `async.pool` / `wait_group` 还没有超时等待
-- runtime 还没有对外暴露更细的 stats
+- `async.runtime_stats()` 已有基础字段，但还没有告警位、历史采样和任务耗时等更细指标
 
-## 6. 风险判断
+## 7. 风险判断
 
 当前项目适合：
 
@@ -119,15 +140,14 @@
 - 具备成熟 IDE 体验的生产级开发平台
 - 拥有稳定第三方包生态的脚本平台
 
-## 7. 建议优先级
+## 8. 建议优先级
 
 ### P1
 
 - 增加格式化器或至少定义官方代码风格
-- 暴露 runtime stats，补足并发诊断
 - 给 `async.pool` 增加结果和错误收集
 - 增加对象模型专题文档，固定 receiver / `this` / `self` / 安全访问语义
-- 补一个更细的 runtime 资源诊断接口，至少包含内存与任务队列信息
+- 在 `async.runtime_stats()` 基础上补告警位、采样窗口和耗时指标
 
 ### P2
 
@@ -135,6 +155,7 @@
 - 让 `build` / manifest 配置能力继续标准化
 - 补一个面向用户的“快速开始”文档
 - 增加 `serde` 专题文档，说明 `__serde__`、`omitempty`、schema 回填的边界
+- 增加 benchmark 结果归档文档，便于后续回归比对
 
 ### P3
 
@@ -142,7 +163,7 @@
 - 固化语言规范与版本兼容策略
 - 增加更多标准库一致性约束和错误码约定
 
-## 8. 本轮补齐项
+## 9. 本轮补齐项
 
 本次已同步修正：
 
@@ -150,5 +171,6 @@
 - `docs/icooclaw-lang-api-reference.md`
 - `icooclaw_lang/cmd/iclang/main.go` 中的 REPL `help` 内建库列表
 - `docs/icooclaw-lang-completeness-report-2026-03-31.md` 的评分和能力评估
+- parser / evaluator benchmark 的当前结果摘要
 
 结论上，`icooclaw_lang` 现在可以被评价为“语言与运行时能力已经较完整、对象编程和序列化能力可用、但生态仍在早中期”的脚本语言运行时。
