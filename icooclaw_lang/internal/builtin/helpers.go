@@ -44,7 +44,7 @@ func hashArg(arg object.Object, message string) (*object.Hash, *object.Error) {
 }
 
 func boolObject(v bool) *object.Boolean {
-	return &object.Boolean{Value: v}
+	return object.BoolObject(v)
 }
 
 func arrayOfStrings(items []string) *object.Array {
@@ -91,7 +91,7 @@ func nativeValue(obj object.Object) interface{} {
 func objectFromNative(value interface{}) object.Object {
 	switch v := value.(type) {
 	case nil:
-		return &object.Null{}
+		return object.NullObject()
 	case string:
 		return &object.String{Value: v}
 	case bool:

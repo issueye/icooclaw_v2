@@ -31,7 +31,7 @@ func evalPrefixExpr(node *ast.PrefixExpr, env *object.Environment) object.Object
 }
 
 func evalBangOperator(right object.Object) object.Object {
-	return &object.Boolean{Value: !object.IsTruthy(right)}
+	return object.BoolObject(!object.IsTruthy(right))
 }
 
 func evalMinusOperator(right object.Object, line int) object.Object {
@@ -68,9 +68,9 @@ func evalInfixExpr(node *ast.InfixExpr, env *object.Environment) object.Object {
 	case "%":
 		return evalModuloOperator(left, right, node.Token.Line)
 	case "==":
-		return &object.Boolean{Value: evalEquality(left, right)}
+		return object.BoolObject(evalEquality(left, right))
 	case "!=":
-		return &object.Boolean{Value: !evalEquality(left, right)}
+		return object.BoolObject(!evalEquality(left, right))
 	case "<":
 		return evalComparison(left, right, "<", node.Token.Line)
 	case ">":
@@ -80,9 +80,9 @@ func evalInfixExpr(node *ast.InfixExpr, env *object.Environment) object.Object {
 	case ">=":
 		return evalComparison(left, right, ">=", node.Token.Line)
 	case "&&":
-		return &object.Boolean{Value: object.IsTruthy(left) && object.IsTruthy(right)}
+		return object.BoolObject(object.IsTruthy(left) && object.IsTruthy(right))
 	case "||":
-		return &object.Boolean{Value: object.IsTruthy(left) || object.IsTruthy(right)}
+		return object.BoolObject(object.IsTruthy(left) || object.IsTruthy(right))
 	default:
 		return object.NewError(node.Token.Line, "unknown operator: %s %s %s", left.Type(), node.Operator, right.Type())
 	}
@@ -225,63 +225,63 @@ func evalComparison(left, right object.Object, op string, line int) object.Objec
 		if right, ok := right.(*object.Integer); ok {
 			switch op {
 			case "<":
-				return &object.Boolean{Value: left.Value < right.Value}
+				return object.BoolObject(left.Value < right.Value)
 			case ">":
-				return &object.Boolean{Value: left.Value > right.Value}
+				return object.BoolObject(left.Value > right.Value)
 			case "<=":
-				return &object.Boolean{Value: left.Value <= right.Value}
+				return object.BoolObject(left.Value <= right.Value)
 			case ">=":
-				return &object.Boolean{Value: left.Value >= right.Value}
+				return object.BoolObject(left.Value >= right.Value)
 			}
 		}
 		if right, ok := right.(*object.Float); ok {
 			switch op {
 			case "<":
-				return &object.Boolean{Value: float64(left.Value) < right.Value}
+				return object.BoolObject(float64(left.Value) < right.Value)
 			case ">":
-				return &object.Boolean{Value: float64(left.Value) > right.Value}
+				return object.BoolObject(float64(left.Value) > right.Value)
 			case "<=":
-				return &object.Boolean{Value: float64(left.Value) <= right.Value}
+				return object.BoolObject(float64(left.Value) <= right.Value)
 			case ">=":
-				return &object.Boolean{Value: float64(left.Value) >= right.Value}
+				return object.BoolObject(float64(left.Value) >= right.Value)
 			}
 		}
 	case *object.Float:
 		if right, ok := right.(*object.Integer); ok {
 			switch op {
 			case "<":
-				return &object.Boolean{Value: left.Value < float64(right.Value)}
+				return object.BoolObject(left.Value < float64(right.Value))
 			case ">":
-				return &object.Boolean{Value: left.Value > float64(right.Value)}
+				return object.BoolObject(left.Value > float64(right.Value))
 			case "<=":
-				return &object.Boolean{Value: left.Value <= float64(right.Value)}
+				return object.BoolObject(left.Value <= float64(right.Value))
 			case ">=":
-				return &object.Boolean{Value: left.Value >= float64(right.Value)}
+				return object.BoolObject(left.Value >= float64(right.Value))
 			}
 		}
 		if right, ok := right.(*object.Float); ok {
 			switch op {
 			case "<":
-				return &object.Boolean{Value: left.Value < right.Value}
+				return object.BoolObject(left.Value < right.Value)
 			case ">":
-				return &object.Boolean{Value: left.Value > right.Value}
+				return object.BoolObject(left.Value > right.Value)
 			case "<=":
-				return &object.Boolean{Value: left.Value <= right.Value}
+				return object.BoolObject(left.Value <= right.Value)
 			case ">=":
-				return &object.Boolean{Value: left.Value >= right.Value}
+				return object.BoolObject(left.Value >= right.Value)
 			}
 		}
 	case *object.String:
 		if right, ok := right.(*object.String); ok {
 			switch op {
 			case "<":
-				return &object.Boolean{Value: left.Value < right.Value}
+				return object.BoolObject(left.Value < right.Value)
 			case ">":
-				return &object.Boolean{Value: left.Value > right.Value}
+				return object.BoolObject(left.Value > right.Value)
 			case "<=":
-				return &object.Boolean{Value: left.Value <= right.Value}
+				return object.BoolObject(left.Value <= right.Value)
 			case ">=":
-				return &object.Boolean{Value: left.Value >= right.Value}
+				return object.BoolObject(left.Value >= right.Value)
 			}
 		}
 	}
@@ -515,7 +515,7 @@ func evalIndexExpr(node *ast.IndexExpr, env *object.Environment) object.Object {
 		key := object.HashKey(index)
 		pair, ok := left.Pairs[key]
 		if !ok {
-			return &object.Null{}
+			return object.NullObject()
 		}
 		return pair.Value
 	case *object.String:
@@ -544,7 +544,7 @@ func evalDotExpr(node *ast.DotExpr, env *object.Environment) object.Object {
 		key := &object.String{Value: node.Right.Value}
 		pair, ok := o.Pairs[object.HashKey(key)]
 		if !ok {
-			return &object.Null{}
+			return object.NullObject()
 		}
 		return pair.Value
 	default:

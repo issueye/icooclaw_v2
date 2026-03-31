@@ -74,7 +74,7 @@ func evalStringMethod(s *object.String, method string, args []object.Object, lin
 		if !ok {
 			return object.NewError(line, "contains() expects STRING argument")
 		}
-		return &object.Boolean{Value: stringsContains(s.Value, sub.Value)}
+		return object.BoolObject(stringsContains(s.Value, sub.Value))
 	case "starts_with":
 		if len(args) != 1 {
 			return object.NewError(line, "starts_with() expects 1 argument")
@@ -83,7 +83,7 @@ func evalStringMethod(s *object.String, method string, args []object.Object, lin
 		if !ok {
 			return object.NewError(line, "starts_with() expects STRING argument")
 		}
-		return &object.Boolean{Value: len(s.Value) >= len(prefix.Value) && s.Value[:len(prefix.Value)] == prefix.Value}
+		return object.BoolObject(len(s.Value) >= len(prefix.Value) && s.Value[:len(prefix.Value)] == prefix.Value)
 	case "ends_with":
 		if len(args) != 1 {
 			return object.NewError(line, "ends_with() expects 1 argument")
@@ -92,7 +92,7 @@ func evalStringMethod(s *object.String, method string, args []object.Object, lin
 		if !ok {
 			return object.NewError(line, "ends_with() expects STRING argument")
 		}
-		return &object.Boolean{Value: len(s.Value) >= len(suffix.Value) && s.Value[len(s.Value)-len(suffix.Value):] == suffix.Value}
+		return object.BoolObject(len(s.Value) >= len(suffix.Value) && s.Value[len(s.Value)-len(suffix.Value):] == suffix.Value)
 	default:
 		return object.NewError(line, "unknown method '%s' on STRING", method)
 	}
@@ -109,7 +109,7 @@ func evalArrayMethod(arr *object.Array, method string, args []object.Object, lin
 		return &object.Array{Elements: append(arr.Elements, args[0])}
 	case "pop":
 		if len(arr.Elements) == 0 {
-			return &object.Null{}
+			return object.NullObject()
 		}
 		return arr.Elements[len(arr.Elements)-1]
 	case "join":
@@ -131,10 +131,10 @@ func evalArrayMethod(arr *object.Array, method string, args []object.Object, lin
 		}
 		for _, e := range arr.Elements {
 			if evalEquality(e, args[0]) {
-				return &object.Boolean{Value: true}
+				return object.BoolObject(true)
 			}
 		}
-		return &object.Boolean{Value: false}
+		return object.BoolObject(false)
 	default:
 		return object.NewError(line, "unknown method '%s' on ARRAY", method)
 	}

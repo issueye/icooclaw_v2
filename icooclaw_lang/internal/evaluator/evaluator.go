@@ -31,7 +31,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			}
 			return &object.Return{Value: val}
 		}
-		return &object.Return{Value: &object.Null{}}
+		return &object.Return{Value: object.NullObject()}
 	case *ast.BreakStmt:
 		return &object.Break{}
 	case *ast.ContinueStmt:
@@ -63,9 +63,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.StringLiteral:
 		return &object.String{Value: node.Value}
 	case *ast.BooleanLiteral:
-		return &object.Boolean{Value: node.Value}
+		return object.BoolObject(node.Value)
 	case *ast.NullLiteral:
-		return &object.Null{}
+		return object.NullObject()
 	case *ast.Identifier:
 		return evalIdentifier(node, env)
 	case *ast.PrefixExpr:
@@ -89,7 +89,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.MethodCallExpr:
 		return evalMethodCallExpr(node, env)
 	case *ast.UnderscoreExpr:
-		return &object.Null{}
+		return object.NullObject()
 	default:
 		return object.NewError(0, "unknown node type: %T", node)
 	}

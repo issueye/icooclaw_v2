@@ -60,7 +60,7 @@ func evalIfStmt(node *ast.IfStmt, env *object.Environment) object.Object {
 		return evalBlockStmt(node.Alternative, env)
 	}
 
-	return &object.Null{}
+	return object.NullObject()
 }
 
 func evalForStmt(node *ast.ForStmt, env *object.Environment) object.Object {
@@ -69,7 +69,7 @@ func evalForStmt(node *ast.ForStmt, env *object.Environment) object.Object {
 		return iterable
 	}
 
-	var result object.Object = &object.Null{}
+	var result object.Object = object.NullObject()
 
 	switch iterable := iterable.(type) {
 	case *object.Array:
@@ -120,7 +120,7 @@ func evalForStmt(node *ast.ForStmt, env *object.Environment) object.Object {
 }
 
 func evalWhileStmt(node *ast.WhileStmt, env *object.Environment) object.Object {
-	var result object.Object = &object.Null{}
+	var result object.Object = object.NullObject()
 
 	for {
 		condition := Eval(node.Condition, env)
@@ -195,7 +195,7 @@ func evalMatchStmt(node *ast.MatchStmt, env *object.Environment) object.Object {
 		}
 	}
 
-	return &object.Null{}
+	return object.NullObject()
 }
 
 func matchValues(subject, pattern object.Object) bool {
@@ -309,5 +309,5 @@ func evalGoStmt(node *ast.GoStmt, env *object.Environment) object.Object {
 		}
 	})
 
-	return &object.Null{}
+	return object.NullObject()
 }

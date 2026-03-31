@@ -95,7 +95,7 @@ func (e *Environment) DefineLocals(bindings map[string]Object) Object {
 		}
 		e.store[name] = val
 	}
-	return &Null{}
+	return NullObject()
 }
 
 func (e *Environment) DefineFunctionParams(params []*ast.Identifier, args []Object, line int) Object {
@@ -113,7 +113,7 @@ func (e *Environment) DefineFunctionParams(params []*ast.Identifier, args []Obje
 		}
 		e.store[name] = args[i]
 	}
-	return &Null{}
+	return NullObject()
 }
 
 func (e *Environment) findVar(name string) *Environment {
@@ -181,7 +181,7 @@ func (e *Environment) Export(name string) Object {
 		e.exports = make(map[string]bool)
 	}
 	e.exports[name] = true
-	return &Null{}
+	return NullObject()
 }
 
 func (e *Environment) ExportedHash() *Hash {

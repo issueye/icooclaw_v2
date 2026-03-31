@@ -507,3 +507,54 @@ go test ./internal/evaluator -run ^$ -bench BenchmarkEvalModuleImportWarm$ -benc
   - 设计受控的作用域复用途径
   - 调整 `Environment` 的内部表示
   - 针对循环/调用热点做更专门的轻量作用域模型
+
+## 14. 第五轮优化尝试
+
+在第四轮之后，又验证了一条“典型但成本较低”的优化路线：把高频不可变值对象改为单例复用。
+
+本轮改动：
+
+- 引入 `object.NullObject()` 和 `object.BoolObject(bool)` 单例访问器
+- 将 evaluator 高频返回点中的 `&object.Null{}` / `&object.Boolean{...}` 改为单例
+- 将部分对象层和 builtin 辅助函数同步切换到单例接口
+
+设计目的很直接：
+
+- 验证 `null / true / false` 这类高频小对象，是否还是当前分配热点的一部分
+- 以非常低的语义风险换取一次真实测量，而不是凭经验判断
+
+### 14.1 第五轮结果
+
+复测命令：
+
+```powershell
+go test ./internal/evaluator -run ^$ -bench BenchmarkEvalProgram$ -benchmem -count 3
+go test ./internal/evaluator -run ^$ -bench BenchmarkEvalFunctionCalls$ -benchmem -count 3
+go test ./internal/evaluator -run ^$ -bench BenchmarkEvalModuleImportWarm$ -benchmem -count 3
+```
+
+结果：
+
+| Benchmark | 典型耗时 | 内存 | 分配次数 |
+| --- | ---: | ---: | ---: |
+| `BenchmarkEvalProgram` | `398-420 us/op` | `469484-469492 B/op` | `5036 allocs/op` |
+| `BenchmarkEvalFunctionCalls` | `383-412 us/op` | `455650-455657 B/op` | `5018 allocs/op` |
+| `BenchmarkEvalModuleImportWarm` | `2.78-2.91 us/op` | `1993 B/op` | `21 allocs/op` |
+
+### 14.2 结果解释
+
+- `BenchmarkEvalProgram` 只下降了约 `1 alloc/op`
+- `BenchmarkEvalFunctionCalls` 基本没有变化
+- `B/op` 几乎完全不动
+
+这说明：
+
+- `null / boolean` 单例化在语义上是安全的
+- 但它们已经不是当前 evaluator 的主分配来源
+- 剩余主要成本仍然集中在：
+  - 作用域对象创建
+  - `Environment.store` 的 map 写入
+  - 其它更重的短生命周期运行时对象
+
+所以第五轮的价值主要在于“排除了一条常见但次要的优化方向”。  
+接下来如果还要继续获得显著收益，就基本需要进入更深层的 runtime 结构优化，而不是继续做对象级微调。

@@ -144,6 +144,23 @@ type Continue struct{}
 func (c *Continue) Type() ObjectType { return CONTINUE_OBJ }
 func (c *Continue) Inspect() string  { return "continue" }
 
+var (
+	nullSingleton  = &Null{}
+	trueSingleton  = &Boolean{Value: true}
+	falseSingleton = &Boolean{Value: false}
+)
+
+func NullObject() *Null {
+	return nullSingleton
+}
+
+func BoolObject(v bool) *Boolean {
+	if v {
+		return trueSingleton
+	}
+	return falseSingleton
+}
+
 func IsError(obj Object) bool {
 	return obj != nil && obj.Type() == ERROR_OBJ
 }
