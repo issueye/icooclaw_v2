@@ -108,8 +108,13 @@ func tryRunBundledExecutable(scriptArgs []string) (bool, error) {
 		return false, err
 	}
 
+	maxGoroutines, remainingArgs, err := parseRuntimeOptions(scriptArgs)
+	if err != nil {
+		return true, err
+	}
+
 	if len(payload.Files) == 0 {
-		return true, executeScriptSource(payload.ScriptPath, payload.ScriptSource, scriptArgs)
+		return true, executeScriptSource(payload.ScriptPath, payload.ScriptSource, remainingArgs, maxGoroutines)
 	}
 
 	projectDir, scriptPath, cleanup, err := materializeBundledProject(payload)
@@ -130,7 +135,7 @@ func tryRunBundledExecutable(scriptArgs []string) (bool, error) {
 		_ = os.Chdir(originalWD)
 	}()
 
-	return true, runFileForBundle(scriptPath, scriptArgs)
+	return true, runFileForBundle(scriptPath, remainingArgs, maxGoroutines)
 }
 
 func readBundlePayload(executablePath string) (*bundlePayload, error) {
@@ -317,13 +322,13 @@ func materializeBundledProject(payload *bundlePayload) (string, string, func(), 
 	return projectDir, scriptPath, cleanup, nil
 }
 
-func runFileForBundle(filename string, scriptArgs []string) error {
+func runFileForBundle(filename string, scriptArgs []string, maxGoroutines int) error {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return fmt.Errorf("Error: could not read file '%s': %s", filename, err)
 	}
 
-	if err := executeScriptSource(filename, string(data), scriptArgs); err != nil {
+	if err := executeScriptSource(filename, string(data), scriptArgs, maxGoroutines); err != nil {
 		return err
 	}
 	return nil

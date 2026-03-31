@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/issueye/icooclaw_lang/internal/evaluator"
@@ -30,8 +31,11 @@ func main() {
 	runCmd := flag.NewFlagSet("run", flag.ExitOnError)
 	buildCmd := flag.NewFlagSet("build", flag.ExitOnError)
 	initCmd := flag.NewFlagSet("init", flag.ExitOnError)
+	replCmd := flag.NewFlagSet("repl", flag.ExitOnError)
 	buildOutput := buildCmd.String("o", "", "output executable path")
 	initName := initCmd.String("name", "", "project name (defaults to directory name)")
+	runMaxGoroutines := runCmd.Int("max-goroutines", 0, "override runtime goroutine pool size")
+	replMaxGoroutines := replCmd.Int("max-goroutines", 0, "override runtime goroutine pool size")
 	versionFlag := flag.Bool("version", false, "print version")
 	flag.Parse()
 
@@ -39,11 +43,11 @@ func main() {
 		fmt.Println("icooclaw script language v" + VERSION)
 		fmt.Println()
 		fmt.Println("Usage:")
-		fmt.Println("  iclang run <file.is> [args...]    Run a script file")
+		fmt.Println("  iclang run [--max-goroutines n] <file.is> [args...]")
 		fmt.Println("  iclang build <file.is> [-o app]   Bundle script and runtime into an executable")
 		fmt.Println("  iclang init <dir> [-name demo]    Initialize a standard project")
 		fmt.Println("  iclang version          Show version")
-		fmt.Println("  iclang repl             Start interactive REPL")
+		fmt.Println("  iclang repl [--max-goroutines n]  Start interactive REPL")
 		os.Exit(0)
 	}
 
@@ -58,10 +62,10 @@ func main() {
 		args := runCmd.Args()
 		if len(args) == 0 {
 			fmt.Println("Error: no input file specified")
-			fmt.Println("Usage: iclang run <file.is> [args...]")
+			fmt.Println("Usage: iclang run [--max-goroutines n] <file.is> [args...]")
 			os.Exit(1)
 		}
-		runFile(args[0], args[1:])
+		runFile(args[0], args[1:], *runMaxGoroutines)
 	case "build":
 		buildCmd.Parse(os.Args[2:])
 		args := buildCmd.Args()
@@ -102,27 +106,28 @@ func main() {
 	case "version":
 		fmt.Println("iclang v" + VERSION)
 	case "repl":
-		startRepl()
+		replCmd.Parse(os.Args[2:])
+		startRepl(*replMaxGoroutines)
 	default:
 		fmt.Printf("Unknown command: %s\n", os.Args[1])
 		os.Exit(1)
 	}
 }
 
-func runFile(filename string, scriptArgs []string) {
+func runFile(filename string, scriptArgs []string, maxGoroutines int) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		fmt.Printf("Error: could not read file '%s': %s\n", filename, err)
 		os.Exit(1)
 	}
 
-	if err := executeScriptSource(filename, string(data), scriptArgs); err != nil {
+	if err := executeScriptSource(filename, string(data), scriptArgs, maxGoroutines); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 }
 
-func executeScriptSource(scriptPath, source string, scriptArgs []string) error {
+func executeScriptSource(scriptPath, source string, scriptArgs []string, maxGoroutines int) error {
 	l := lexer.New(source)
 	p := parser.New(l)
 
@@ -136,6 +141,7 @@ func executeScriptSource(scriptPath, source string, scriptArgs []string) error {
 
 	env := object.NewEnvironment()
 	env.SetCLIContext(scriptPath, scriptArgs)
+	configureRuntimeConcurrency(env, maxGoroutines)
 	result := evaluator.Eval(program, env)
 	env.Wait()
 
@@ -147,13 +153,14 @@ func executeScriptSource(scriptPath, source string, scriptArgs []string) error {
 	return nil
 }
 
-func startRepl() {
+func startRepl(maxGoroutines int) {
 	fmt.Println("iclang REPL v" + VERSION)
 	fmt.Println("Type 'exit' to quit, 'help' for help")
 	fmt.Println()
 
 	env := object.NewEnvironment()
 	env.SetCLIContext("", nil)
+	configureRuntimeConcurrency(env, maxGoroutines)
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
@@ -220,6 +227,60 @@ func printHelp() {
 	fmt.Println("Commands:")
 	fmt.Println("  exit/quit - exit REPL")
 	fmt.Println("  help      - show this help")
+}
+
+func configureRuntimeConcurrency(env *object.Environment, maxGoroutines int) {
+	if env == nil || env.Runtime() == nil || maxGoroutines <= 0 {
+		return
+	}
+	env.Runtime().SetMaxConcurrency(maxGoroutines)
+}
+
+func parseRuntimeOptions(args []string) (int, []string, error) {
+	if len(args) == 0 {
+		return 0, nil, nil
+	}
+
+	maxGoroutines := 0
+	remaining := make([]string, 0, len(args))
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+
+		if arg == "--" {
+			remaining = append(remaining, args[i+1:]...)
+			break
+		}
+
+		if strings.HasPrefix(arg, "--max-goroutines=") {
+			valueText := strings.TrimPrefix(arg, "--max-goroutines=")
+			value, err := strconv.Atoi(valueText)
+			if err != nil || value <= 0 {
+				return 0, nil, fmt.Errorf("invalid value for --max-goroutines: %q", valueText)
+			}
+			maxGoroutines = value
+			continue
+		}
+
+		if arg == "--max-goroutines" {
+			if i+1 >= len(args) {
+				return 0, nil, errors.New("missing value for --max-goroutines")
+			}
+			valueText := args[i+1]
+			value, err := strconv.Atoi(valueText)
+			if err != nil || value <= 0 {
+				return 0, nil, fmt.Errorf("invalid value for --max-goroutines: %q", valueText)
+			}
+			maxGoroutines = value
+			i++
+			continue
+		}
+
+		remaining = append(remaining, args[i:]...)
+		break
+	}
+
+	return maxGoroutines, remaining, nil
 }
 
 func isVersionArg(args []string) bool {

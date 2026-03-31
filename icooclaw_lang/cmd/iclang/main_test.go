@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/issueye/icooclaw_lang/internal/object"
 )
 
 func TestInitProjectCreatesStandardScaffold(t *testing.T) {
@@ -84,7 +86,7 @@ print(os.script_path())
 	}
 
 	output := captureStdout(t, func() {
-		runFile(scriptPath, []string{"input.txt", "--mode=prod", "--verbose"})
+		runFile(scriptPath, []string{"input.txt", "--mode=prod", "--verbose"}, 0)
 	})
 
 	lines := strings.Split(strings.TrimSpace(output), "\n")
@@ -151,6 +153,86 @@ print(os.script_path())
 	}
 	if lines[1] != filepath.Base(scriptPath) {
 		t.Fatalf("unexpected bundled script path: %q", lines[1])
+	}
+}
+
+func TestConfigureRuntimeConcurrencyOverridesDefault(t *testing.T) {
+	env := object.NewEnvironment()
+	configureRuntimeConcurrency(env, 3)
+
+	if got := env.Runtime().MaxConcurrency(); got != 3 {
+		t.Fatalf("MaxConcurrency() = %d, want 3", got)
+	}
+}
+
+func TestParseRuntimeOptions(t *testing.T) {
+	maxGoroutines, args, err := parseRuntimeOptions([]string{"--max-goroutines", "4", "input.txt", "--mode=prod"})
+	if err != nil {
+		t.Fatalf("parseRuntimeOptions() error = %v", err)
+	}
+	if maxGoroutines != 4 {
+		t.Fatalf("maxGoroutines = %d, want 4", maxGoroutines)
+	}
+	if got := strings.Join(args, " "); got != "input.txt --mode=prod" {
+		t.Fatalf("args = %q", got)
+	}
+}
+
+func TestParseRuntimeOptionsInlineValue(t *testing.T) {
+	maxGoroutines, args, err := parseRuntimeOptions([]string{"--max-goroutines=3", "--", "input.txt", "--mode=prod"})
+	if err != nil {
+		t.Fatalf("parseRuntimeOptions() error = %v", err)
+	}
+	if maxGoroutines != 3 {
+		t.Fatalf("maxGoroutines = %d, want 3", maxGoroutines)
+	}
+	if got := strings.Join(args, " "); got != "input.txt --mode=prod" {
+		t.Fatalf("args = %q", got)
+	}
+}
+
+func TestBuildBundlePassesRuntimeOptionsToBundledExecutable(t *testing.T) {
+	dir := t.TempDir()
+	scriptPath := filepath.Join(dir, "bundle_runtime.is")
+	script := `
+print("pool:" + str(async.runtime_concurrency()))
+print("arg0:" + os.arg(0))
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	outputPath := filepath.Join(dir, "bundle_runtime_app")
+	if runtime.GOOS == "windows" {
+		outputPath += ".exe"
+	}
+
+	runtimePath, err := os.Executable()
+	if err != nil {
+		t.Fatalf("resolve test executable: %v", err)
+	}
+	if err := buildBundleWithRuntime(scriptPath, outputPath, runtimePath); err != nil {
+		t.Fatalf("build bundle: %v", err)
+	}
+
+	cmd := exec.Command(outputPath, "-test.run=TestBundledHelperProcess", "--", "--max-goroutines", "3", "payload.txt")
+	cmd.Env = append(os.Environ(), "ICLANG_BUNDLE_HELPER=1")
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stdout
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("run bundled executable: %v, output=%s", err, stdout.String())
+	}
+
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected at least 2 output lines, got %d: %q", len(lines), stdout.String())
+	}
+	if lines[0] != "pool:3" {
+		t.Fatalf("unexpected bundled pool output: %q", lines[0])
+	}
+	if lines[1] != "arg0:payload.txt" {
+		t.Fatalf("unexpected bundled arg output: %q", lines[1])
 	}
 }
 
