@@ -6,9 +6,15 @@ import (
 
 	"github.com/issueye/icooclaw_lang/internal/ast"
 	"github.com/issueye/icooclaw_lang/internal/lexer"
+	"github.com/issueye/icooclaw_lang/internal/memoryguard"
 )
 
 func (p *Parser) parseExpr(precedence int) ast.Expr {
+	if err := memoryguard.Checkpoint(); err != nil {
+		p.errors = append(p.errors, err.Error())
+		return nil
+	}
+
 	prefix := p.prefixParseFns[p.curToken.Type]
 	if prefix == nil {
 		msg := fmt.Sprintf("line %d: no prefix parse function for %s found", p.curToken.Line, p.curToken.Type)

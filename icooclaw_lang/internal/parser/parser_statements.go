@@ -5,6 +5,7 @@ import (
 
 	"github.com/issueye/icooclaw_lang/internal/ast"
 	"github.com/issueye/icooclaw_lang/internal/lexer"
+	"github.com/issueye/icooclaw_lang/internal/memoryguard"
 )
 
 func (p *Parser) parseStatement() ast.Stmt {
@@ -248,6 +249,10 @@ func (p *Parser) parseBlockStmt() *ast.BlockStmt {
 	p.skipNewlines()
 
 	for p.curToken.Type != lexer.RBRACE && p.curToken.Type != lexer.EOF {
+		if err := memoryguard.Checkpoint(); err != nil {
+			p.errors = append(p.errors, err.Error())
+			break
+		}
 		stmt := p.parseStatement()
 		if stmt != nil {
 			block.Statements = append(block.Statements, stmt)

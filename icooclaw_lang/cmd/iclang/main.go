@@ -12,6 +12,7 @@ import (
 
 	"github.com/issueye/icooclaw_lang/internal/evaluator"
 	"github.com/issueye/icooclaw_lang/internal/lexer"
+	"github.com/issueye/icooclaw_lang/internal/memoryguard"
 	"github.com/issueye/icooclaw_lang/internal/object"
 	"github.com/issueye/icooclaw_lang/internal/parser"
 )
@@ -35,7 +36,11 @@ func main() {
 	buildOutput := buildCmd.String("o", "", "output executable path")
 	initName := initCmd.String("name", "", "project name (defaults to directory name)")
 	runMaxGoroutines := runCmd.Int("max-goroutines", 0, "override runtime goroutine pool size")
+	runMaxMemoryMB := runCmd.Int("max-memory-mb", 0, "override runtime memory limit in MB")
+	runMaxMemoryPercent := runCmd.Int("max-memory-percent", 0, "override runtime memory limit as a percentage of host memory")
 	replMaxGoroutines := replCmd.Int("max-goroutines", 0, "override runtime goroutine pool size")
+	replMaxMemoryMB := replCmd.Int("max-memory-mb", 0, "override runtime memory limit in MB")
+	replMaxMemoryPercent := replCmd.Int("max-memory-percent", 0, "override runtime memory limit as a percentage of host memory")
 	versionFlag := flag.Bool("version", false, "print version")
 	flag.Parse()
 
@@ -43,11 +48,11 @@ func main() {
 		fmt.Println("icooclaw script language v" + VERSION)
 		fmt.Println()
 		fmt.Println("Usage:")
-		fmt.Println("  iclang run [--max-goroutines n] <file.is> [args...]")
+		fmt.Println("  iclang run [--max-goroutines n] [--max-memory-mb n] [--max-memory-percent n] <file.is> [args...]")
 		fmt.Println("  iclang build <file.is> [-o app]   Bundle script and runtime into an executable")
 		fmt.Println("  iclang init <dir> [-name demo]    Initialize a standard project")
 		fmt.Println("  iclang version          Show version")
-		fmt.Println("  iclang repl [--max-goroutines n]  Start interactive REPL")
+		fmt.Println("  iclang repl [--max-goroutines n] [--max-memory-mb n] [--max-memory-percent n]  Start interactive REPL")
 		os.Exit(0)
 	}
 
@@ -62,10 +67,14 @@ func main() {
 		args := runCmd.Args()
 		if len(args) == 0 {
 			fmt.Println("Error: no input file specified")
-			fmt.Println("Usage: iclang run [--max-goroutines n] <file.is> [args...]")
+			fmt.Println("Usage: iclang run [--max-goroutines n] [--max-memory-mb n] [--max-memory-percent n] <file.is> [args...]")
 			os.Exit(1)
 		}
-		runFile(args[0], args[1:], *runMaxGoroutines)
+		runFile(args[0], args[1:], runtimeOptions{
+			MaxGoroutines:    *runMaxGoroutines,
+			MaxMemoryMB:      *runMaxMemoryMB,
+			MaxMemoryPercent: *runMaxMemoryPercent,
+		})
 	case "build":
 		buildCmd.Parse(os.Args[2:])
 		args := buildCmd.Args()
@@ -107,27 +116,47 @@ func main() {
 		fmt.Println("iclang v" + VERSION)
 	case "repl":
 		replCmd.Parse(os.Args[2:])
-		startRepl(*replMaxGoroutines)
+		startRepl(runtimeOptions{
+			MaxGoroutines:    *replMaxGoroutines,
+			MaxMemoryMB:      *replMaxMemoryMB,
+			MaxMemoryPercent: *replMaxMemoryPercent,
+		})
 	default:
 		fmt.Printf("Unknown command: %s\n", os.Args[1])
 		os.Exit(1)
 	}
 }
 
-func runFile(filename string, scriptArgs []string, maxGoroutines int) {
+type runtimeOptions struct {
+	MaxGoroutines    int
+	MaxMemoryMB      int
+	MaxMemoryPercent int
+}
+
+func runFile(filename string, scriptArgs []string, opts runtimeOptions) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		fmt.Printf("Error: could not read file '%s': %s\n", filename, err)
 		os.Exit(1)
 	}
 
-	if err := executeScriptSource(filename, string(data), scriptArgs, maxGoroutines); err != nil {
+	if err := executeScriptSource(filename, string(data), scriptArgs, opts); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 }
 
-func executeScriptSource(scriptPath, source string, scriptArgs []string, maxGoroutines int) error {
+func executeScriptSource(scriptPath, source string, scriptArgs []string, opts runtimeOptions) error {
+	limitBytes, err := memoryguard.ResolveLimitBytes(opts.MaxMemoryMB, opts.MaxMemoryPercent)
+	if err != nil {
+		return err
+	}
+	restoreMemoryGuard := memoryguard.Activate(limitBytes)
+	defer restoreMemoryGuard()
+	if err := memoryguard.CheckNow(); err != nil {
+		return err
+	}
+
 	l := lexer.New(source)
 	p := parser.New(l)
 
@@ -141,7 +170,7 @@ func executeScriptSource(scriptPath, source string, scriptArgs []string, maxGoro
 
 	env := object.NewEnvironment()
 	env.SetCLIContext(scriptPath, scriptArgs)
-	configureRuntimeConcurrency(env, maxGoroutines)
+	configureRuntimeConcurrency(env, opts.MaxGoroutines)
 	result := evaluator.Eval(program, env)
 	env.Wait()
 
@@ -153,14 +182,26 @@ func executeScriptSource(scriptPath, source string, scriptArgs []string, maxGoro
 	return nil
 }
 
-func startRepl(maxGoroutines int) {
+func startRepl(opts runtimeOptions) {
 	fmt.Println("iclang REPL v" + VERSION)
 	fmt.Println("Type 'exit' to quit, 'help' for help")
 	fmt.Println()
 
+	limitBytes, err := memoryguard.ResolveLimitBytes(opts.MaxMemoryMB, opts.MaxMemoryPercent)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	restoreMemoryGuard := memoryguard.Activate(limitBytes)
+	defer restoreMemoryGuard()
+	if err := memoryguard.CheckNow(); err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
 	env := object.NewEnvironment()
 	env.SetCLIContext("", nil)
-	configureRuntimeConcurrency(env, maxGoroutines)
+	configureRuntimeConcurrency(env, opts.MaxGoroutines)
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
@@ -223,6 +264,8 @@ func printHelp() {
 	fmt.Println()
 	fmt.Println("Built-in libraries:")
 	fmt.Println("  async, db, fs, http, json, toml, yaml, log, time, os, exec, path, crypto, websocket, sse")
+	fmt.Println("Environment:")
+	fmt.Println("  ICLANG_MAX_GOROUTINES, ICLANG_MAX_MEMORY_MB, ICLANG_MAX_MEMORY_PERCENT")
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  exit/quit - exit REPL")
@@ -236,12 +279,12 @@ func configureRuntimeConcurrency(env *object.Environment, maxGoroutines int) {
 	env.Runtime().SetMaxConcurrency(maxGoroutines)
 }
 
-func parseRuntimeOptions(args []string) (int, []string, error) {
+func parseRuntimeOptions(args []string) (runtimeOptions, []string, error) {
 	if len(args) == 0 {
-		return 0, nil, nil
+		return runtimeOptions{}, nil, nil
 	}
 
-	maxGoroutines := 0
+	opts := runtimeOptions{}
 	remaining := make([]string, 0, len(args))
 
 	for i := 0; i < len(args); i++ {
@@ -256,22 +299,70 @@ func parseRuntimeOptions(args []string) (int, []string, error) {
 			valueText := strings.TrimPrefix(arg, "--max-goroutines=")
 			value, err := strconv.Atoi(valueText)
 			if err != nil || value <= 0 {
-				return 0, nil, fmt.Errorf("invalid value for --max-goroutines: %q", valueText)
+				return runtimeOptions{}, nil, fmt.Errorf("invalid value for --max-goroutines: %q", valueText)
 			}
-			maxGoroutines = value
+			opts.MaxGoroutines = value
 			continue
 		}
 
 		if arg == "--max-goroutines" {
 			if i+1 >= len(args) {
-				return 0, nil, errors.New("missing value for --max-goroutines")
+				return runtimeOptions{}, nil, errors.New("missing value for --max-goroutines")
 			}
 			valueText := args[i+1]
 			value, err := strconv.Atoi(valueText)
 			if err != nil || value <= 0 {
-				return 0, nil, fmt.Errorf("invalid value for --max-goroutines: %q", valueText)
+				return runtimeOptions{}, nil, fmt.Errorf("invalid value for --max-goroutines: %q", valueText)
 			}
-			maxGoroutines = value
+			opts.MaxGoroutines = value
+			i++
+			continue
+		}
+
+		if strings.HasPrefix(arg, "--max-memory-mb=") {
+			valueText := strings.TrimPrefix(arg, "--max-memory-mb=")
+			value, err := strconv.Atoi(valueText)
+			if err != nil || value <= 0 {
+				return runtimeOptions{}, nil, fmt.Errorf("invalid value for --max-memory-mb: %q", valueText)
+			}
+			opts.MaxMemoryMB = value
+			continue
+		}
+
+		if arg == "--max-memory-mb" {
+			if i+1 >= len(args) {
+				return runtimeOptions{}, nil, errors.New("missing value for --max-memory-mb")
+			}
+			valueText := args[i+1]
+			value, err := strconv.Atoi(valueText)
+			if err != nil || value <= 0 {
+				return runtimeOptions{}, nil, fmt.Errorf("invalid value for --max-memory-mb: %q", valueText)
+			}
+			opts.MaxMemoryMB = value
+			i++
+			continue
+		}
+
+		if strings.HasPrefix(arg, "--max-memory-percent=") {
+			valueText := strings.TrimPrefix(arg, "--max-memory-percent=")
+			value, err := strconv.Atoi(valueText)
+			if err != nil || value <= 0 || value > 100 {
+				return runtimeOptions{}, nil, fmt.Errorf("invalid value for --max-memory-percent: %q", valueText)
+			}
+			opts.MaxMemoryPercent = value
+			continue
+		}
+
+		if arg == "--max-memory-percent" {
+			if i+1 >= len(args) {
+				return runtimeOptions{}, nil, errors.New("missing value for --max-memory-percent")
+			}
+			valueText := args[i+1]
+			value, err := strconv.Atoi(valueText)
+			if err != nil || value <= 0 || value > 100 {
+				return runtimeOptions{}, nil, fmt.Errorf("invalid value for --max-memory-percent: %q", valueText)
+			}
+			opts.MaxMemoryPercent = value
 			i++
 			continue
 		}
@@ -280,7 +371,7 @@ func parseRuntimeOptions(args []string) (int, []string, error) {
 		break
 	}
 
-	return maxGoroutines, remaining, nil
+	return opts, remaining, nil
 }
 
 func isVersionArg(args []string) bool {

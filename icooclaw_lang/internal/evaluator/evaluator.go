@@ -2,10 +2,15 @@ package evaluator
 
 import (
 	"github.com/issueye/icooclaw_lang/internal/ast"
+	"github.com/issueye/icooclaw_lang/internal/memoryguard"
 	"github.com/issueye/icooclaw_lang/internal/object"
 )
 
 func Eval(node ast.Node, env *object.Environment) object.Object {
+	if err := memoryguard.Checkpoint(); err != nil {
+		return object.NewError(0, "%s", err.Error())
+	}
+
 	switch node := node.(type) {
 	case *ast.Program:
 		return evalProgram(node, env)

@@ -86,7 +86,7 @@ print(os.script_path())
 	}
 
 	output := captureStdout(t, func() {
-		runFile(scriptPath, []string{"input.txt", "--mode=prod", "--verbose"}, 0)
+		runFile(scriptPath, []string{"input.txt", "--mode=prod", "--verbose"}, runtimeOptions{})
 	})
 
 	lines := strings.Split(strings.TrimSpace(output), "\n")
@@ -166,12 +166,18 @@ func TestConfigureRuntimeConcurrencyOverridesDefault(t *testing.T) {
 }
 
 func TestParseRuntimeOptions(t *testing.T) {
-	maxGoroutines, args, err := parseRuntimeOptions([]string{"--max-goroutines", "4", "input.txt", "--mode=prod"})
+	opts, args, err := parseRuntimeOptions([]string{"--max-goroutines", "4", "--max-memory-mb", "256", "--max-memory-percent", "75", "input.txt", "--mode=prod"})
 	if err != nil {
 		t.Fatalf("parseRuntimeOptions() error = %v", err)
 	}
-	if maxGoroutines != 4 {
-		t.Fatalf("maxGoroutines = %d, want 4", maxGoroutines)
+	if opts.MaxGoroutines != 4 {
+		t.Fatalf("MaxGoroutines = %d, want 4", opts.MaxGoroutines)
+	}
+	if opts.MaxMemoryMB != 256 {
+		t.Fatalf("MaxMemoryMB = %d, want 256", opts.MaxMemoryMB)
+	}
+	if opts.MaxMemoryPercent != 75 {
+		t.Fatalf("MaxMemoryPercent = %d, want 75", opts.MaxMemoryPercent)
 	}
 	if got := strings.Join(args, " "); got != "input.txt --mode=prod" {
 		t.Fatalf("args = %q", got)
@@ -179,15 +185,31 @@ func TestParseRuntimeOptions(t *testing.T) {
 }
 
 func TestParseRuntimeOptionsInlineValue(t *testing.T) {
-	maxGoroutines, args, err := parseRuntimeOptions([]string{"--max-goroutines=3", "--", "input.txt", "--mode=prod"})
+	opts, args, err := parseRuntimeOptions([]string{"--max-goroutines=3", "--max-memory-mb=128", "--max-memory-percent=60", "--", "input.txt", "--mode=prod"})
 	if err != nil {
 		t.Fatalf("parseRuntimeOptions() error = %v", err)
 	}
-	if maxGoroutines != 3 {
-		t.Fatalf("maxGoroutines = %d, want 3", maxGoroutines)
+	if opts.MaxGoroutines != 3 {
+		t.Fatalf("MaxGoroutines = %d, want 3", opts.MaxGoroutines)
+	}
+	if opts.MaxMemoryMB != 128 {
+		t.Fatalf("MaxMemoryMB = %d, want 128", opts.MaxMemoryMB)
+	}
+	if opts.MaxMemoryPercent != 60 {
+		t.Fatalf("MaxMemoryPercent = %d, want 60", opts.MaxMemoryPercent)
 	}
 	if got := strings.Join(args, " "); got != "input.txt --mode=prod" {
 		t.Fatalf("args = %q", got)
+	}
+}
+
+func TestExecuteScriptSourceReturnsFriendlyErrorWhenMemoryLimitIsExceeded(t *testing.T) {
+	err := executeScriptSource("demo.is", `payload = "hello"`, nil, runtimeOptions{MaxMemoryMB: 1})
+	if err == nil {
+		t.Fatal("expected executeScriptSource() to fail when memory limit is too low")
+	}
+	if !strings.Contains(err.Error(), "memory limit exceeded") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

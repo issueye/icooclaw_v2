@@ -23,11 +23,11 @@
 运行与打包入口：
 
 ```bash
-iclang run [--max-goroutines n] demo.is input.txt --mode=prod
+iclang run [--max-goroutines n] [--max-memory-mb n] [--max-memory-percent n] demo.is input.txt --mode=prod
 iclang build demo.is -o demo.exe
 iclang init demo-app -name demo_app
-iclang repl [--max-goroutines n]
-demo.exe [--max-goroutines n] input.txt --mode=prod
+iclang repl [--max-goroutines n] [--max-memory-mb n] [--max-memory-percent n]
+demo.exe [--max-goroutines n] [--max-memory-mb n] [--max-memory-percent n] input.txt --mode=prod
 ```
 
 ## 2. 规范运行时表面
@@ -253,6 +253,19 @@ wg.count()
 - 默认读取环境变量 `ICLANG_MAX_GOROUTINES`
 - `iclang run --max-goroutines n ...` 可覆盖当前运行
 - `demo.exe --max-goroutines n ...` 可覆盖打包后的程序运行
+
+运行时内存保护约定：
+
+- 默认读取环境变量 `ICLANG_MAX_MEMORY_MB` 和 `ICLANG_MAX_MEMORY_PERCENT`
+- `iclang run --max-memory-mb n ...` 可覆盖当前运行
+- `iclang run --max-memory-percent n ...` 可按主机总内存百分比覆盖当前运行
+- `iclang repl --max-memory-mb n` 可覆盖当前 REPL
+- `iclang repl --max-memory-percent n` 可按主机总内存百分比覆盖当前 REPL
+- `demo.exe --max-memory-mb n ...` 可覆盖打包后的程序运行
+- `demo.exe --max-memory-percent n ...` 可按主机总内存百分比覆盖打包后的程序运行
+- 如果没有显式配置，默认阈值是主机总内存的 `90%`
+- 优先级是 MB 绝对值优先于百分比阈值
+- 当内存超过限制时，运行会返回 `memory limit exceeded` 错误
 
 ### 5.2 fs
 
@@ -841,6 +854,13 @@ for i in range(1, 5) {
 wg.wait()
 pool.wait()
 print(total.to_string())
+```
+
+CLI 运行时保护示例：
+
+```bash
+iclang run --max-goroutines 4 --max-memory-percent 90 demo.is
+demo.exe --max-memory-mb 256 input.txt
 ```
 
 ## 7. 不要这样生成

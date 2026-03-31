@@ -5,6 +5,7 @@ import (
 
 	"github.com/issueye/icooclaw_lang/internal/ast"
 	"github.com/issueye/icooclaw_lang/internal/lexer"
+	"github.com/issueye/icooclaw_lang/internal/memoryguard"
 )
 
 type Parser struct {
@@ -37,30 +38,30 @@ const (
 )
 
 var precedences = map[lexer.TokenType]int{
-	lexer.ASSIGN:   ASSIGN,
-	lexer.PLUS_EQ:  ASSIGN,
-	lexer.MINUS_EQ: ASSIGN,
-	lexer.STAR_EQ:  ASSIGN,
-	lexer.SLASH_EQ: ASSIGN,
-	lexer.PLUS_PLUS: INDEX,
-	lexer.MINUS_MINUS: INDEX,
-	lexer.OR:       OR,
-	lexer.AND:      AND,
-	lexer.EQ:       EQUALS,
-	lexer.NE:       EQUALS,
-	lexer.LT:       LESSGREATER,
-	lexer.GT:       LESSGREATER,
-	lexer.LE:       LESSGREATER,
-	lexer.GE:       LESSGREATER,
-	lexer.PLUS:     SUM,
-	lexer.MINUS:    SUM,
-	lexer.SLASH:    PRODUCT,
-	lexer.STAR:     PRODUCT,
-	lexer.PERCENT:  PRODUCT,
-	lexer.LPAREN:   CALL,
-	lexer.LBRACKET: INDEX,
-	lexer.DOT:      INDEX,
-	lexer.SAFE_DOT: INDEX,
+	lexer.ASSIGN:        ASSIGN,
+	lexer.PLUS_EQ:       ASSIGN,
+	lexer.MINUS_EQ:      ASSIGN,
+	lexer.STAR_EQ:       ASSIGN,
+	lexer.SLASH_EQ:      ASSIGN,
+	lexer.PLUS_PLUS:     INDEX,
+	lexer.MINUS_MINUS:   INDEX,
+	lexer.OR:            OR,
+	lexer.AND:           AND,
+	lexer.EQ:            EQUALS,
+	lexer.NE:            EQUALS,
+	lexer.LT:            LESSGREATER,
+	lexer.GT:            LESSGREATER,
+	lexer.LE:            LESSGREATER,
+	lexer.GE:            LESSGREATER,
+	lexer.PLUS:          SUM,
+	lexer.MINUS:         SUM,
+	lexer.SLASH:         PRODUCT,
+	lexer.STAR:          PRODUCT,
+	lexer.PERCENT:       PRODUCT,
+	lexer.LPAREN:        CALL,
+	lexer.LBRACKET:      INDEX,
+	lexer.DOT:           INDEX,
+	lexer.SAFE_DOT:      INDEX,
 	lexer.SAFE_LBRACKET: INDEX,
 }
 
@@ -124,6 +125,10 @@ func (p *Parser) ParseProgram() *ast.Program {
 	program := &ast.Program{}
 
 	for p.curToken.Type != lexer.EOF {
+		if err := memoryguard.Checkpoint(); err != nil {
+			p.errors = append(p.errors, err.Error())
+			break
+		}
 		if p.curToken.Type == lexer.NEWLINE || p.curToken.Type == lexer.SEMICOLON {
 			p.nextToken()
 			continue
