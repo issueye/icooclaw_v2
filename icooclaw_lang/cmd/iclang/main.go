@@ -64,7 +64,7 @@ func main() {
 		args := buildCmd.Args()
 		if len(args) == 0 {
 			fmt.Println("Error: no input file specified")
-			fmt.Println("Usage: iclang build <file.is> [-o app]")
+			fmt.Println("Usage: iclang build <file.is|project_dir|pkg.toml> [-o app]")
 			os.Exit(1)
 		}
 

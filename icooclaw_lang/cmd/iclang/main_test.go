@@ -95,6 +95,81 @@ print(os.script_path())
 	}
 }
 
+func TestBuildBundleUsesPkgTomlFromProjectDirectory(t *testing.T) {
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "ic_agent")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("mkdir project: %v", err)
+	}
+
+	manifest := `name = "demo_agent"
+entry = "./main.is"
+`
+	if err := os.WriteFile(filepath.Join(projectDir, "pkg.toml"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	script := `
+print("project:" + os.arg(0))
+print(os.script_path())
+`
+	scriptPath := filepath.Join(projectDir, "main.is")
+	if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	outputPath := filepath.Join(dir, defaultBundleOutputPath(projectDir))
+	runtimePath, err := os.Executable()
+	if err != nil {
+		t.Fatalf("resolve test executable: %v", err)
+	}
+
+	if err := buildBundleWithRuntime(projectDir, outputPath, runtimePath); err != nil {
+		t.Fatalf("build bundle from project dir: %v", err)
+	}
+
+	cmd := exec.Command(outputPath, "-test.run=TestBundledHelperProcess", "--", "ok")
+	cmd.Env = append(os.Environ(), "ICLANG_BUNDLE_HELPER=1")
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stdout
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("run bundled executable: %v, output=%s", err, stdout.String())
+	}
+
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if lines[0] != "project:ok" {
+		t.Fatalf("unexpected bundled output: %q", lines[0])
+	}
+	if !strings.HasSuffix(filepath.ToSlash(lines[1]), "/ic_agent/main.is") {
+		t.Fatalf("unexpected bundled script path: %q", lines[1])
+	}
+}
+
+func TestDefaultBundleOutputPathUsesManifestName(t *testing.T) {
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "ic_agent")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("mkdir project: %v", err)
+	}
+
+	manifest := `name = "demo_agent"
+entry = "./main.is"
+`
+	if err := os.WriteFile(filepath.Join(projectDir, "pkg.toml"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	got := defaultBundleOutputPath(projectDir)
+	want := "demo_agent"
+	if runtime.GOOS == "windows" {
+		want += ".exe"
+	}
+	if got != want {
+		t.Fatalf("defaultBundleOutputPath() = %q, want %q", got, want)
+	}
+}
+
 func TestBundledHelperProcess(t *testing.T) {
 	if os.Getenv("ICLANG_BUNDLE_HELPER") != "1" {
 		t.SkipNow()

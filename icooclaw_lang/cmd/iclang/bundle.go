@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 )
 
@@ -17,30 +18,35 @@ var errBundlePayloadNotFound = errors.New("bundle payload not found")
 const bundleMagic = "ICLANG_BUNDLE_V1"
 
 type bundlePayload struct {
-	ScriptPath   string `json:"script_path"`
-	ScriptSource string `json:"script_source"`
+	ScriptPath   string            `json:"script_path"`
+	ScriptSource string            `json:"script_source"`
+	ProjectRoot  string            `json:"project_root,omitempty"`
+	Files        map[string]string `json:"files,omitempty"`
 }
 
 func defaultBundleOutputPath(scriptPath string) string {
-	base := strings.TrimSuffix(filepath.Base(scriptPath), filepath.Ext(scriptPath))
+	_, base, _, err := resolveBuildInput(scriptPath)
+	if err != nil {
+		base = strings.TrimSuffix(filepath.Base(scriptPath), filepath.Ext(scriptPath))
+	}
 	if runtime.GOOS == "windows" {
 		return base + ".exe"
 	}
 	return base
 }
 
-func buildBundle(scriptPath, outputPath string) error {
+func buildBundle(inputPath, outputPath string) error {
 	runtimePath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("resolve runtime executable: %w", err)
 	}
-	return buildBundleWithRuntime(scriptPath, outputPath, runtimePath)
+	return buildBundleWithRuntime(inputPath, outputPath, runtimePath)
 }
 
-func buildBundleWithRuntime(scriptPath, outputPath, runtimePath string) error {
-	scriptAbs, err := filepath.Abs(scriptPath)
+func buildBundleWithRuntime(inputPath, outputPath, runtimePath string) error {
+	scriptAbs, _, projectRoot, err := resolveBuildInput(inputPath)
 	if err != nil {
-		return fmt.Errorf("resolve script path: %w", err)
+		return err
 	}
 
 	scriptBytes, err := os.ReadFile(scriptAbs)
@@ -48,10 +54,25 @@ func buildBundleWithRuntime(scriptPath, outputPath, runtimePath string) error {
 		return fmt.Errorf("read script: %w", err)
 	}
 
-	payloadBytes, err := json.Marshal(bundlePayload{
+	payload := bundlePayload{
 		ScriptPath:   filepath.Base(scriptAbs),
 		ScriptSource: string(scriptBytes),
-	})
+	}
+	if projectRoot != "" {
+		files, err := collectBundleFiles(projectRoot)
+		if err != nil {
+			return fmt.Errorf("collect project files: %w", err)
+		}
+		relScriptPath, err := filepath.Rel(projectRoot, scriptAbs)
+		if err != nil {
+			return fmt.Errorf("derive entry path: %w", err)
+		}
+		payload.ScriptPath = filepath.ToSlash(relScriptPath)
+		payload.ProjectRoot = filepath.Base(projectRoot)
+		payload.Files = files
+	}
+
+	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("encode bundle payload: %w", err)
 	}
@@ -87,7 +108,29 @@ func tryRunBundledExecutable(scriptArgs []string) (bool, error) {
 		return false, err
 	}
 
-	return true, executeScriptSource(payload.ScriptPath, payload.ScriptSource, scriptArgs)
+	if len(payload.Files) == 0 {
+		return true, executeScriptSource(payload.ScriptPath, payload.ScriptSource, scriptArgs)
+	}
+
+	projectDir, scriptPath, cleanup, err := materializeBundledProject(payload)
+	if err != nil {
+		return false, err
+	}
+	defer cleanup()
+
+	workingRoot := filepath.Dir(projectDir)
+	originalWD, err := os.Getwd()
+	if err != nil {
+		return false, fmt.Errorf("resolve working dir: %w", err)
+	}
+	if err := os.Chdir(workingRoot); err != nil {
+		return false, fmt.Errorf("switch to bundled project dir: %w", err)
+	}
+	defer func() {
+		_ = os.Chdir(originalWD)
+	}()
+
+	return true, runFileForBundle(scriptPath, scriptArgs)
 }
 
 func readBundlePayload(executablePath string) (*bundlePayload, error) {
@@ -175,4 +218,113 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return out.Close()
+}
+
+func collectBundleFiles(projectRoot string) (map[string]string, error) {
+	files := map[string]string{}
+
+	err := filepath.WalkDir(projectRoot, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			name := d.Name()
+			if strings.HasPrefix(name, ".") {
+				if path == projectRoot {
+					return nil
+				}
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		relPath, err := filepath.Rel(projectRoot, path)
+		if err != nil {
+			return err
+		}
+		relPath = filepath.ToSlash(relPath)
+		if shouldSkipBundleFile(relPath) {
+			return nil
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		files[relPath] = string(data)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return files, nil
+}
+
+func shouldSkipBundleFile(relPath string) bool {
+	base := filepath.Base(relPath)
+	ext := strings.ToLower(filepath.Ext(base))
+
+	if strings.HasSuffix(strings.ToLower(base), ".exe") {
+		return true
+	}
+	switch ext {
+	case ".out", ".log":
+		return true
+	}
+	return false
+}
+
+func materializeBundledProject(payload *bundlePayload) (string, string, func(), error) {
+	rootName := payload.ProjectRoot
+	if rootName == "" {
+		rootName = "iclang_project"
+	}
+
+	tempRoot, err := os.MkdirTemp("", "iclang-bundle-*")
+	if err != nil {
+		return "", "", nil, fmt.Errorf("create temp project dir: %w", err)
+	}
+
+	projectDir := filepath.Join(tempRoot, rootName)
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		os.RemoveAll(tempRoot)
+		return "", "", nil, fmt.Errorf("create bundled project root: %w", err)
+	}
+
+	paths := make([]string, 0, len(payload.Files))
+	for relPath := range payload.Files {
+		paths = append(paths, relPath)
+	}
+	sort.Strings(paths)
+
+	for _, relPath := range paths {
+		targetPath := filepath.Join(projectDir, filepath.FromSlash(relPath))
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+			os.RemoveAll(tempRoot)
+			return "", "", nil, fmt.Errorf("create bundled file dir: %w", err)
+		}
+		if err := os.WriteFile(targetPath, []byte(payload.Files[relPath]), 0o644); err != nil {
+			os.RemoveAll(tempRoot)
+			return "", "", nil, fmt.Errorf("write bundled file: %w", err)
+		}
+	}
+
+	scriptPath := filepath.Join(projectDir, filepath.FromSlash(payload.ScriptPath))
+	cleanup := func() {
+		_ = os.RemoveAll(tempRoot)
+	}
+	return projectDir, scriptPath, cleanup, nil
+}
+
+func runFileForBundle(filename string, scriptArgs []string) error {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return fmt.Errorf("Error: could not read file '%s': %s", filename, err)
+	}
+
+	if err := executeScriptSource(filename, string(data), scriptArgs); err != nil {
+		return err
+	}
+	return nil
 }
