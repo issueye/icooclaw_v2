@@ -640,6 +640,38 @@ tag = account?.profile?["tag"]
 	}
 }
 
+func TestChainedSafeMethodAccessWorks(t *testing.T) {
+	env, result := evalSource(t, `
+user = null
+missing_title = user?.get_profile()?.title
+
+account = {
+    "profile": {
+        "title": "runtime"
+    },
+    "get_profile": fn() {
+        return this.profile
+    }
+}
+
+title = account?.get_profile()?.title
+`)
+
+	if object.IsError(result) {
+		t.Fatalf("unexpected eval error: %s", result.Inspect())
+	}
+
+	missingTitle, _ := env.Get("missing_title")
+	if missingTitle.Inspect() != "null" {
+		t.Fatalf("expected missing_title=null, got %s", missingTitle.Inspect())
+	}
+
+	title, _ := env.Get("title")
+	if title.Inspect() != "runtime" {
+		t.Fatalf("expected title=runtime, got %s", title.Inspect())
+	}
+}
+
 func TestMethodDeclarationRequiresExistingHashReceiver(t *testing.T) {
 	_, result := evalSource(t, `
 value = 1

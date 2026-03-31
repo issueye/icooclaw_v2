@@ -94,6 +94,32 @@ result = call_all(
 	}
 }
 
+func TestChainedSafeMethodAccessParsesQuickly(t *testing.T) {
+	source := `
+user = null
+missing_title = user?.get_profile()?.title
+
+account = {
+    "profile": {
+        "title": "runtime"
+    },
+    "get_profile": fn() {
+        return this.profile
+    }
+}
+
+title = account?.get_profile()?.title
+`
+
+	program, errs := parseProgramWithTimeout(t, source, 2*time.Second)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected parser errors: %v", errs)
+	}
+	if program == nil || len(program.Statements) == 0 {
+		t.Fatal("expected parsed statements")
+	}
+}
+
 func parseProgramWithTimeout(t *testing.T, source string, timeout time.Duration) (*ast.Program, []string) {
 	t.Helper()
 

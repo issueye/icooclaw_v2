@@ -250,9 +250,6 @@ func (p *Parser) parseHashLiteral() ast.Expr {
 		value := p.parseExpr(LOWEST)
 		hash.Pairs[key] = value
 
-		if p.curTokenIs(lexer.RBRACE) {
-			break
-		}
 		if p.curTokenIs(lexer.COMMA) {
 			p.nextToken()
 			p.skipNewlines()
@@ -260,6 +257,9 @@ func (p *Parser) parseHashLiteral() ast.Expr {
 		}
 
 		p.skipPeekNewlines()
+		if p.curTokenIs(lexer.RBRACE) && !p.peekTokenIs(lexer.COMMA) {
+			break
+		}
 		if p.peekTokenIs(lexer.RBRACE) {
 			p.nextToken()
 			break

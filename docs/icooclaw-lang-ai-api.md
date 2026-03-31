@@ -111,7 +111,7 @@ user.rename("codex")
 - 安全索引支持 `arr?[0]` 和 `obj?["name"]`
 - 安全更新支持 `obj?.field += 1` 和 `obj?.field++`
 - 安全索引更新支持 `obj?["count"] += 1`、`obj?["count"]++` 和 `arr?[0]++`
-- 连续链式安全访问已验证 `user?.profile?.name` 和 `user?.profile?["tag"]`
+- 连续链式安全访问支持 `user?.profile?.name`、`user?.get_profile()?.name`、`user?.profile?["tag"]`
 
 ## 3. 推荐语法模板
 

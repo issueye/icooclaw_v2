@@ -128,6 +128,8 @@ func (p *Parser) ParseProgram() *ast.Program {
 			p.nextToken()
 			continue
 		}
+		startCur := p.curToken
+		startPeek := p.peekToken
 		prevErrorCount := len(p.errors)
 		stmt := p.parseStatement()
 		if stmt != nil {
@@ -137,12 +139,19 @@ func (p *Parser) ParseProgram() *ast.Program {
 			p.nextToken()
 		}
 		p.skipNewlines()
+		if tokensEqual(startCur, p.curToken) && tokensEqual(startPeek, p.peekToken) {
+			p.nextToken()
+		}
 		if len(p.errors) > prevErrorCount && stmt == nil {
 			p.synchronize()
 		}
 	}
 
 	return program
+}
+
+func tokensEqual(a, b lexer.Token) bool {
+	return a.Type == b.Type && a.Literal == b.Literal && a.Line == b.Line && a.Column == b.Column
 }
 
 func (p *Parser) Errors() []string {
