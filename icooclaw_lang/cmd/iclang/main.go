@@ -215,7 +215,7 @@ func printHelp() {
 	fmt.Println("  read_file(path), write_file(path, content)")
 	fmt.Println()
 	fmt.Println("Built-in libraries:")
-	fmt.Println("  db, fs, http, json, log, time, os, path, crypto, websocket, sse")
+	fmt.Println("  db, fs, http, json, yaml, log, time, os, path, crypto, websocket, sse")
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  exit/quit - exit REPL")

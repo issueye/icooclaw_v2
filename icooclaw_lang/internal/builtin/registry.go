@@ -25,6 +25,7 @@ func libraryBuiltins() map[string]object.Object {
 		"http":      newHTTPLib(),
 		"json":      newJSONLib(),
 		"toml":      newTOMLLib(),
+		"yaml":      newYAMLLib(),
 		"log":       newLogLib(),
 		"time":      newTimeLib(),
 		"os":        newOSLib(),

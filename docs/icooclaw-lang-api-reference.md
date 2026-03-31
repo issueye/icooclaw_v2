@@ -1,7 +1,7 @@
 # icooclaw_lang API 参考文档
 
 版本：`0.1.0`  
-最后更新：`2026-03-30`
+最后更新：`2026-03-31`
 
 这份文档面向开发者阅读，目标是帮助你理解和扩展 `icooclaw_lang` 当前已经实现并对外暴露的 API 表面。内容覆盖 `iclang` 的核心语法、内建函数、内建库，以及原生库常见返回对象的结构。
 
@@ -196,6 +196,7 @@ export add
 - `fs`
 - `http`
 - `json`
+- `yaml`
 - `log`
 - `time`
 - `os`
@@ -239,7 +240,21 @@ export add
 | `json.stringify` | `json.stringify(value)` | `STRING` |
 | `json.stringify_pretty` | `json.stringify_pretty(value)` | `STRING` |
 
-### 6.3 time
+### 6.3 yaml
+
+| API | 签名 | 返回值 |
+| --- | --- | --- |
+| `yaml.parse` | `yaml.parse(text)` | 运行时对象 |
+| `yaml.parse_file` | `yaml.parse_file(path)` | 运行时对象 |
+| `yaml.stringify` | `yaml.stringify(value)` | `STRING` |
+
+说明：
+
+- YAML 解析结果会转换成运行时 `HASH` / `ARRAY` / 标量值
+- `yaml.parse_file` 适合读取项目配置或模板文件
+- `yaml.stringify` 适合把运行时对象导出为 YAML 文本
+
+### 6.4 time
 
 | API | 签名 |
 | --- | --- |
@@ -269,7 +284,7 @@ export add
 }
 ```
 
-### 6.4 os
+### 6.5 os
 
 | API | 签名 |
 | --- | --- |
@@ -302,7 +317,7 @@ os.has_flag("verbose") # true
 os.script_path()       # "demo.is"
 ```
 
-### 6.5 path
+### 6.6 path
 
 | API | 签名 |
 | --- | --- |
@@ -312,7 +327,7 @@ os.script_path()       # "demo.is"
 | `path.dir` | `path.dir(path_value)` |
 | `path.clean` | `path.clean(path_value)` |
 
-### 6.5 exec
+### 6.7 exec
 
 | API | 签名 |
 | --- | --- |
@@ -378,7 +393,7 @@ while true {
 print(proc.wait())
 ```
 
-### 6.6 crypto
+### 6.8 crypto
 
 | API | 签名 |
 | --- | --- |
@@ -390,7 +405,7 @@ print(proc.wait())
 
 当前 crypto API 都以字符串为输入，并返回字符串。
 
-### 6.7 log
+### 6.9 log
 
 | API | 签名 |
 | --- | --- |
@@ -418,7 +433,7 @@ JSON 模式日志格式：
 {"timestamp":"2026-03-30T20:00:00+08:00","level":"INFO","message":"hello","fields":{"request_id":"req-1"}}
 ```
 
-### 6.8 http
+### 6.10 http
 
 结构：
 
@@ -520,7 +535,7 @@ handler 返回值规则：
 }
 ```
 
-### 6.9 websocket
+### 6.11 websocket
 
 结构：
 
@@ -587,7 +602,7 @@ fn ws_handler(req, socket) {
 }
 ```
 
-### 6.10 sse
+### 6.12 sse
 
 结构：
 
@@ -651,7 +666,7 @@ fn events(req, stream) {
 
 `sse.server.stats()` 的结构与 `websocket.server.stats()` 相同。
 
-### 6.11 db
+### 6.13 db
 
 结构：
 

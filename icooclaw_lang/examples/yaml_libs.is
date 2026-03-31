@@ -1,0 +1,23 @@
+# yaml demo
+
+inline_text = "name: icooclaw\nservice:\n  addr: 127.0.0.1:8080\n  enabled: true\ntags:\n  - go\n  - is\n"
+inline_config = yaml.parse(inline_text)
+print(inline_config.name)
+print(inline_config.service.addr)
+print(inline_config.tags[0])
+
+fs.write_file("demo.yaml", "app:\n  name: demo\n  port: 9000\nfeatures:\n  - chat\n  - tools\n")
+file_config = yaml.parse_file("demo.yaml")
+print(file_config.app.name)
+print(file_config.app.port)
+print(file_config.features[1])
+
+encoded = yaml.stringify({
+    "service": {
+        "name": "iclang",
+        "debug": false
+    },
+    "retries": 3,
+    "hosts": ["127.0.0.1", "localhost"]
+})
+print(encoded)
